@@ -4,96 +4,89 @@
 
 ## 当前阶段
 
-阶段 1：Python 工程骨架、质量工具和基础 CLI。
+阶段 3：严格项目配置、实验领域模型，以及 JSON、YAML、CSV 实验结果读取。
 
-状态：工程实现已完成；可用的本地验证已通过。由于当前环境禁止联网且未缓存 `pytest-cov`、`pyright`、`build` 和完整运行时依赖，覆盖率、Pyright 和 `python -m build` 尚未实际通过，阶段 1 完成标准因此不能标记为“全部满足”。
+状态：阶段 3 已完成实现、自动测试、命令级验收和完成标准审计。当前正式运行基线为 Python `>=3.13,<4.0`；目标附件中残留的 Python 3.12 描述已由后续用户决策和仓库正式文档更新为 3.13。
 
-## 本阶段已完成
+## 本阶段已实现
 
-- 建立 Python `>=3.12,<4.0` 的 `src` layout 和最小包边界：`domain`、`application`、`adapters`、`cli`。
-- 建立 `pyproject.toml`，区分运行时依赖与 `dev` extra，并配置 pytest、coverage、Ruff、Pyright 和 setuptools build backend。
-- 建立单一版本来源 `metricproof.__version__ = "0.1.0.dev0"`；包元数据和 `metricproof --version` 复用该值。
-- 提供 console script `metricproof = metricproof.cli.main:app` 和 `python -m metricproof` 入口。
-- 提供 `--help`、`--version` 和 `doctor`。
-- `doctor` 通过应用端口接收只读环境探测，结构化返回 PASS/WARN/FAIL、code、位置、证据和消息。
-- `doctor` 检查 Python 版本、Git 状态、项目根目录、`.metricproof` 目录和有界 `.tex` 文件发现。
-- Git 使用参数列表、只读命令和 3 秒超时；不使用 `shell=True`。
-- `.tex` 发现最大深度为 6、最多 1000 个文件，默认忽略 `.git`、`.venv`、`build`、`dist`、`__pycache__` 等目录，不解析或读取 LaTeX 内容。
-- 建立与 SPEC 兼容的退出码枚举和最小用户可见异常边界；预期错误与内部错误不向用户输出 traceback。
-- 创建 README、Apache-2.0 LICENSE、`.gitignore` 和 33 项测试。
-- 根目录 `main.py` 已确认是未引用的 PyCharm 默认模板，并按阶段目标删除；最终 CLI 不依赖该文件。
+- 严格、安全读取项目根目录 `.metricproof/config.yml`，要求 `schema_version: "1"`。
+- Pydantic 配置模型默认拒绝顶级和嵌套未知字段，YAML 使用安全 loader 并检测重复 key。
+- `result_paths` 支持项目相对精确路径和 glob，稳定展开 JSON/YAML/CSV 来源。
+- 所有配置路径检查绝对路径、`..`、不存在文件、重复路径别名和符号链接逃逸。
+- JSON/YAML 通过 `structured.metrics` 与 `structured.metadata` 显式声明 selector。
+- JSON/YAML 单 run 支持固定 `run_id` 或 `run_id_selector`；多 run 数组必须显式配置 `records_selector` 和 `run_id_selector`。
+- CSV 必须声明 `run_id_column`、`metric_columns`、`metadata_columns`，使用标准库 `csv`。
+- 建立 `SourceLocation`、`NumericValue`、`MetricObservation`、`ExperimentRun`、`Evidence`、`InputDiagnostic` 和 `ExperimentCatalog`。
+- 指标使用有限 `Decimal`；JSON/YAML 保留数字词法文本，CSV 直接从字符串解析，不经过二进制 `float`。
+- 布尔、空字符串、`NaN` 和 Infinity 均不会成为合法 Observation。
+- JSON/YAML 检测重复 key、语法错误、selector 错误、非显式数组、递归结构和最大深度。
+- CSV 检测缺失/重复表头、缺列、行宽、缺失/重复 run ID、空/非法数值和最大行数。
+- 多来源按稳定顺序读取；同一 run 可合并不同指标，重复 metric、元数据和配置引用冲突形成阻断诊断。
+- 实现 `ConfigurationRepository`、`ExperimentSourceReader`、`SourceReadResult` 和 `load_experiments` 应用边界。
+- 增加 `metricproof experiments list` / `validate` 及 `--json`，机器输出稳定纯净。
+- CLI 保持展示与应用/领域逻辑分离，输入错误不显示 traceback，也不修改输入文件。
 
-## 当前可运行命令
+## 集中资源限制
 
-在安装了项目依赖的环境中：
+- 单文件最大 5,000,000 bytes。
+- JSON/YAML 最大嵌套深度 64。
+- 最大实验结果来源数 1,000。
+- 单 CSV 最大数据行数 100,000。
 
-```text
-metricproof --help
-metricproof --version
-metricproof doctor
-python -m metricproof --help
-python -m pytest
-python -m pytest --cov=metricproof
-python -m ruff check .
-python -m ruff format --check .
-pyright
-python -m build
-```
+这些是阶段 3 有文档的内置常量；配置中的未来 `limits` 字段当前不改变这些读取边界。
 
-开发安装命令：
+## 当前测试证据
 
-```text
-python -m pip install -e ".[dev]"
-```
+在 Python 3.13.9 下，阶段 3 扩展后：
 
-## 实际验证状态
+- `python --version`：Python 3.13.9。
+- `python -m pytest`：121 passed，1 skipped。
+- `python -m pytest --cov=metricproof --cov-report=term-missing`：121 passed，1 skipped，92.84% branch coverage。
+- 跳过项仅为当前 Windows 账户无创建符号链接权限；另以真实 Windows 目录联接验证了链接逃逸被拒绝，CLI 返回配置错误退出码 2。
+- `python -m ruff check .`：通过。
+- `python -m ruff format --check .`：31 files already formatted。
+- `pyright` strict：0 errors、0 warnings、0 informations。
+- `python -m compileall -q src`：通过。
+- `python -m build`：成功生成 sdist 与 wheel；首次受限沙箱临时目录失败后，同一命令在正常临时目录权限下通过。
+- `metricproof --help`：通过，显示 `doctor` 与 `experiments`。
+- `metricproof --version`：`MetricProof 0.1.0.dev0`。
+- `metricproof doctor`：3 PASS、2 WARN，退出码 0。
+- `metricproof experiments --help` 与 `python -m metricproof experiments --help`：通过。
+- 临时 JSON/YAML/CSV 项目执行 `metricproof experiments list`：稳定列出 4 个 run。
+- 同一项目执行 `metricproof experiments validate`：4 run、4 observation、0 diagnostic，退出码 0。
+- 同一项目执行 `metricproof experiments list --json`：输出可解析、稳定且无附加日志的 JSON。
+- `git diff --check`：通过。
+- 安全扫描未发现代码中的 `eval`、`exec`、`shell=True`、pandas、联网或远程资源操作。
 
-| 命令或检查 | 结果 | 环境/说明 |
-|---|---|---|
-| Python 3.12 解释器检查 | PASS | Codex bundled Python 3.12.13 |
-| `python -m pip install -e ".[dev]"` | ENVIRONMENT BLOCKED | 强制离线；构建隔离无法获取 setuptools，关闭隔离后确认缺少 Typer 等本地分发包 |
-| `python -m pip install --no-build-isolation --no-deps -e .` | PASS | Python 3.12.13；验证 editable 包和统一版本元数据 |
-| `python -m compileall -q src` | PASS | Python 3.12.13 |
-| `python -m pytest` | PASS | Python 3.13.9；33 passed in 0.64s |
-| `python -m pytest --cov=metricproof` | ENVIRONMENT BLOCKED | 当前解释器未安装 `pytest-cov`，`--cov` 无法识别 |
-| `python -m ruff check .` | PASS | Ruff 0.12.0 |
-| `python -m ruff format --check .` | PASS | 14 files already formatted |
-| `pyright` | ENVIRONMENT BLOCKED | 本机未安装 Pyright，npm 离线缓存也不存在 |
-| `metricproof --help` | PASS | Python 3.13.9 隔离 venv + 本机已有 Typer/Rich |
-| `metricproof --version` | PASS | 输出 `MetricProof 0.1.0.dev0` |
-| `metricproof doctor` | PASS | 当前仓库 3 PASS、2 WARN、退出码 0；未执行写操作 |
-| `python -m metricproof --help` | PASS | Python 3.13.9 隔离 venv |
-| `python -m build` | ENVIRONMENT BLOCKED | Python 3.12 环境未安装 `build` 模块 |
-| `python -m pip wheel --no-build-isolation --no-deps .` | PASS | Python 3.12.13；生成 `metricproof-0.1.0.dev0-py3-none-any.whl` |
-| `git diff --check` | PASS | 仅有 Git 行尾提示，无空白错误 |
+验证中的沙箱临时目录权限失败均已使用相同命令在正常临时目录权限下复验；它们不是产品断言失败。除账户权限导致的符号链接测试跳过外，没有未通过的项目级检查。
 
-## 尚未实现
+## 当前尚未实现
 
-- `.metricproof` 配置创建与读取。
-- JSON、YAML、CSV 实验结果读取。
-- LaTeX 文件图、内容解析、Claim 和表格提取。
-- Claim 链接、迁移和持久化。
-- 五条一致性规则。
-- `CheckResult`、正式 JSON/HTML 报告和完整 Console 报告。
-- Git 证据链、GitHub Actions 和端到端示例。
-
-## 已知限制
-
-- 当前本机没有可离线安装的完整依赖集合，无法完成 `.[dev]` 全量安装。
-- 覆盖率数值未生成，不能声称达到配置的 90% 阈值。
-- Pyright 严格配置已建立，但尚未由 Pyright 实际验证。
-- 标准 `python -m build` 未运行成功；仅验证了同一 setuptools backend 的离线 wheel 构建。
-- 当前可完整运行 CLI 的隔离验证环境是 Python 3.13.9；Python 3.12 已验证包安装、版本和编译，但因缺少 Typer/Rich 未运行 CLI。
-- `doctor` 只做浅层环境诊断；不创建 `.metricproof`，不解析 LaTeX，不读取实验结果。
+- LaTeX 文件内容解析、Claim 和表格提取。
+- `metricproof scan`、Claim ID、Claim-to-Metric 链接和 `claims.yml`。
+- `STALE_VALUE`、`WRONG_DELTA`、`MISSING_PROVENANCE`、`WRONG_BEST_MARK`、`UNFAIR_COMPARISON`。
+- 完整 `check`、正式检查结果 JSON 和 HTML 报告。
+- Git 实验证据读取、GitHub Actions、远程资源、数据库、Web 或插件系统。
 
 ## 下一阶段可依赖的稳定接口
 
-- `metricproof.__version__`：单一版本来源。
-- `metricproof.cli.main:app`：console script 与模块入口共享的 Typer 应用。
-- `metricproof.application.errors.ExitCode`：与 SPEC 兼容的退出码基础。
-- `metricproof.application.doctor.DoctorProbe`：只读 doctor 环境端口。
-- `metricproof.application.doctor.run_doctor`：不依赖 Rich 的应用服务。
-- `DoctorCheck`、`DoctorReport`、`GitInspection`、`LatexDiscovery`：阶段 1 的最小结构化环境检查模型。
-- `metricproof.adapters.doctor.LocalDoctorProbe`：受边界限制的本地文件系统/Git 适配器。
+阶段 1 接口继续稳定：
 
-下一阶段不得绕过这些边界把配置、实验读取、LaTeX 解析或规则逻辑直接写入 CLI。
+- `metricproof.__version__`
+- `metricproof.cli.main:app`
+- `ExitCode`、`MetricProofError`
+- `DoctorProbe`、`run_doctor`
+- `DoctorCheck`、`DoctorReport`、`GitInspection`、`LatexDiscovery`
+- `LocalDoctorProbe`
+
+阶段 3 新增稳定边界：
+
+- `SourceLocation`、`NumericValue`、`MetricObservation`、`ExperimentRun`、`Evidence`、`InputDiagnostic`、`ExperimentCatalog`
+- `ExperimentFormat`、`StructuredSourceOptions`、`CsvSourceOptions`、`ExperimentSource`、`ProjectConfiguration`
+- `ConfigurationRepository`、`ExperimentSourceReader`、`SourceReadResult`
+- `load_experiments`
+- `YamlConfigurationRepository`、`LocalExperimentSourceReader`
+- `metricproof experiments list`、`metricproof experiments validate`
+
+下一阶段必须消费这些领域对象和应用端口，不得让 LaTeX、Claim 或规则逻辑直接读取任意实验文件或进入 CLI。

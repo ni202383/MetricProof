@@ -168,10 +168,15 @@ metricproof/
 
 ### 7.3 实验结果
 
-- JSON/YAML 使用明确扁平化点路径。
-- CSV 完全由配置声明列角色。
-- 适配器返回领域模型与可定位输入诊断。
-- 不使用 pandas 作为首版必需依赖。
+阶段 3 当前实现为：
+
+- `YamlConfigurationRepository` 实现 `ConfigurationRepository`，在适配器边界使用 Pydantic 严格模型和安全 YAML loader。
+- `LocalExperimentSourceReader` 实现 `ExperimentSourceReader`，按声明格式分派 JSON/YAML/CSV，但共享 Decimal、selector、诊断和资源边界。
+- `load_experiments` 只依赖端口与领域对象，按稳定来源顺序合并 run；重复 metric 和冲突 metadata/config reference 形成阻断诊断。
+- JSON/YAML 使用显式点路径，不对任意数值字段或数组做自动指标发现。
+- CSV 完全由配置声明列角色，使用标准库 `csv`，不依赖 pandas。
+- 适配器返回 `SourceReadResult`；领域目录结果统一为 `ExperimentCatalog`。
+- 固定资源上限集中位于 `adapters/limits.py`，不是散落魔法数字或可执行配置。
 
 ### 7.4 Git
 

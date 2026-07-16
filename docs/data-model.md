@@ -23,7 +23,7 @@
 | `char_start` | `int >= 0` | 文件内字符起点 |
 | `char_end` | `int > char_start` | 文件内字符终点 |
 
-`SourceLocation` 是当前定位，不作为持久化主身份。
+`SourceLocation` 是当前定位，不作为持久化主身份。阶段 3 的 JSON/YAML selector 位置通常只填写 `path`；CSV 位置填写 `path`、`line`、`column`。结束范围和字符范围为后续 LaTeX 阶段预留，可为 `None`。
 
 ### 2.2 `NumericValue`
 
@@ -329,9 +329,54 @@ Evidence 必须描述已观察事实，不包含规则结论本身。
 
 所有报告格式都消费该模型。
 
-## 8. `config.yml` 首版结构
+## 8. `config.yml` 阶段 3 已实现结构
 
-以下是设计示例，不代表当前已有可运行实现：
+阶段 3 已实现以下严格 schema。JSON/YAML 指标和元数据必须显式声明 selector：
+
+```yaml
+schema_version: "1"
+result_paths:
+  - path: runs/baseline.json
+    format: json
+    run_id: baseline
+    structured:
+      metrics:
+        accuracy: metrics.accuracy
+      metadata:
+        dataset: context.dataset
+        split: context.split
+        seed: context.seed
+
+  - path: runs/all.yml
+    format: yaml
+    structured:
+      records_selector: runs
+      run_id_selector: id
+      metrics:
+        accuracy: metrics.accuracy
+
+  - path: runs/seeds.csv
+    format: csv
+    csv:
+      run_id_column: run_id
+      metadata_columns: [dataset, split, seed]
+      metric_columns: [accuracy, f1]
+
+experiment_config_paths:
+  - configs/**/*.yml
+exclude_paths:
+  - build/**
+```
+
+结构化单 run 来源必须在固定 `run_id` 与相对根 mapping 的 `run_id_selector` 中二选一。多 run 数组必须同时声明 `records_selector` 和相对记录的 `run_id_selector`，且不得固定一个 run ID。`metrics` 映射规范指标名到点路径；`metadata` 映射受控元数据名到点路径。点路径中的整数段是显式数组索引，数组不会自动展开为指标。
+
+每个结果来源可声明一个精确 `config_reference`。`experiment_config_paths` 的匹配文件在阶段 3 中只验证、稳定记录并作为后续配置快照输入，不比较配置，也不运行 `UNFAIR_COMPARISON`。
+
+未知顶级和嵌套字段均拒绝。所有路径以项目根目录为基准，拒绝绝对路径、`..`、缺失文件、重复别名和符号链接逃逸。
+
+### 8.1 后续完整 MVP 配置参考
+
+以下较完整示例中的论文、指标方向、容差、比较策略和 policy 字段可被严格 schema 验证，但阶段 3 不执行相应业务逻辑；读取资源边界使用代码中集中定义的内置常量：
 
 ```yaml
 schema_version: "1"
@@ -401,7 +446,7 @@ limits:
   max_files: 1000
 ```
 
-未知顶级字段拒绝。实现阶段可以把重复结构拆成 Pydantic 子模型，但不得改变语义。
+未知顶级字段拒绝。未来阶段启用这些字段时不得改变已持久化语义。
 
 ## 9. `claims.yml` 首版结构
 

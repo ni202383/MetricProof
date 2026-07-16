@@ -1,13 +1,14 @@
 # MetricProof
 
-MetricProof is an open-source, local-first Python CLI for checking whether experimental claims remain consistent with local research artifacts.
+MetricProof is an open-source, local-first Python CLI for checking research artifacts with deterministic, explainable rules.
 
-The project is in local development. Stage 1 provides only the installable package, quality tooling, base CLI, and non-destructive environment diagnostics. Paper scanning, experiment loading, Claim linking, consistency rules, and formal JSON/HTML reports are not implemented yet.
+Stage 3 is implemented: MetricProof can strictly load `.metricproof/config.yml`, read declared JSON, YAML, and CSV experiment results, normalize them into exact `Decimal`-based domain objects, and expose `experiments list` / `experiments validate`. LaTeX scanning, Claim linking, the five paper consistency rules, and formal HTML reports are not implemented yet.
 
 ## Requirements
 
 - Python 3.13 or newer, below Python 4.0
-- Git is optional for `doctor`, but unavailable Git is reported as an environment failure
+- No network service, database, AI API, or experiment platform is required
+- Git is optional for `doctor`; unavailable Git is reported as an environment failure
 
 ## Development setup
 
@@ -26,33 +27,141 @@ Install the project in editable mode with development dependencies:
 python -m pip install -e ".[dev]"
 ```
 
+If the environment is intentionally offline and build dependencies are already installed:
+
+```text
+python -m pip install --no-build-isolation -e ".[dev]"
+```
+
+## Minimal experiment configuration
+
+Create `.metricproof/config.yml` in the project root. This single-run JSON example only reads the explicitly declared metric and metadata selectors:
+
+```yaml
+schema_version: "1"
+result_paths:
+  - path: runs/baseline.json
+    format: json
+    run_id: baseline
+    structured:
+      metrics:
+        accuracy: metrics.accuracy
+      metadata:
+        dataset: context.dataset
+        split: context.split
+        seed: context.seed
+```
+
+`runs/baseline.json`:
+
+```json
+{
+  "metrics": {"accuracy": 0.872},
+  "context": {"dataset": "cifar10", "split": "test", "seed": 7}
+}
+```
+
+JSON and YAML can also read an explicit array of run mappings. Arrays are never auto-expanded as metrics:
+
+```yaml
+schema_version: "1"
+result_paths:
+  - path: runs/results.yml
+    format: yaml
+    structured:
+      records_selector: runs
+      run_id_selector: id
+      metrics:
+        accuracy: metrics.accuracy
+      metadata:
+        dataset: dataset
+```
+
+`runs/results.yml`:
+
+```yaml
+runs:
+  - id: baseline
+    dataset: cifar10
+    metrics:
+      accuracy: 0.841
+  - id: proposed
+    dataset: cifar10
+    metrics:
+      accuracy: 0.872
+```
+
+CSV is intentionally explicit and uses the Python standard library, not pandas:
+
+```yaml
+schema_version: "1"
+result_paths:
+  - path: runs/seeds.csv
+    format: csv
+    csv:
+      run_id_column: run_id
+      metric_columns: [accuracy, loss]
+      metadata_columns: [dataset, split, seed]
+```
+
+`runs/seeds.csv`:
+
+```csv
+run_id,accuracy,loss,dataset,split,seed
+seed-1,0.871,0.42,cifar10,test,1
+seed-2,0.873,0.40,cifar10,test,2
+```
+
+Optional `config_reference` on a result source preserves one project-relative experiment configuration file. `experiment_config_paths` validates and records additional JSON/YAML configuration files for later stages; Stage 3 does not compare them or judge experimental fairness.
+
+All paths and globs are project-relative. Absolute paths, `..` traversal, missing files, duplicate path aliases, and symlink escapes are rejected.
+
 ## CLI
 
 ```text
 metricproof --help
 metricproof --version
 metricproof doctor
-python -m metricproof --help
+metricproof experiments --help
+metricproof experiments list
+metricproof experiments list --json
+metricproof experiments validate
+metricproof experiments validate --json
+python -m metricproof experiments --help
 ```
 
-`doctor` only reads environment and repository metadata. It does not create configuration, parse LaTeX, execute TeX or user code, or modify Git.
+- `experiments list` displays normalized runs, metrics, source files, and selectors.
+- `experiments validate` validates config and every source without modifying them.
+- `--json` writes one stable JSON document to stdout without Rich formatting.
+- Invalid project configuration exits with code `2`; blocking result-input errors exit with code `3`.
+
+## Safety and supported boundaries
+
+- YAML uses a safe loader and rejects duplicate keys, unsafe tags, and multiple documents.
+- JSON rejects duplicate object keys and non-finite constants.
+- JSON/YAML numbers are converted from lexical text to `Decimal` without a binary `float` round trip.
+- CSV values are converted directly from source strings and support standard quoting/newlines.
+- Booleans, empty strings, `NaN`, and infinities are not valid metric values.
+- Built-in limits are 5,000,000 bytes per file, nesting depth 64, 1,000 result sources, and 100,000 CSV rows.
+- MetricProof does not execute result files, TeX, Python modules, training scripts, or expressions.
 
 ## Quality checks
 
 ```text
 python -m pytest
-python -m pytest --cov=metricproof
+python -m pytest --cov=metricproof --cov-report=term-missing
 python -m ruff check .
 python -m ruff format --check .
 pyright
 python -m build
 ```
 
-## Not implemented in Stage 1
+For an intentionally offline environment with local build dependencies available, use `python -m build --no-isolation`.
 
-- LaTeX paper scanning or parsing
-- JSON, YAML, or CSV experiment ingestion
-- Claim discovery, linking, or migration
-- The five MetricProof consistency rules
-- JSON and HTML reports
+## Not implemented yet
+
+- LaTeX paper scanning or parsing and `metricproof scan`
+- Claim discovery, IDs, linking, migration, or `claims.yml`
+- `STALE_VALUE`, `WRONG_DELTA`, `MISSING_PROVENANCE`, `WRONG_BEST_MARK`, or `UNFAIR_COMPARISON`
+- Formal `check`, versioned check-result JSON, or HTML reports
 - GitHub Actions, remote services, databases, plugins, or AI integrations

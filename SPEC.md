@@ -201,14 +201,18 @@ max(abs_tolerance, rel_tolerance × max(|expected|, |observed|))
 
 ### 10.1 JSON / YAML
 
-- 支持嵌套映射，并用稳定点路径表示 `source_selector`。
+- 阶段 3 已实现显式 `structured.metrics` / `structured.metadata` 点路径映射。
+- 单 run 来源在固定 `run_id` 与 `run_id_selector` 中二选一；多 run 数组必须显式配置 `records_selector` 和 `run_id_selector`。
+- 支持嵌套映射，并用稳定点路径表示 `source_selector`；整数路径段仅作为显式数组索引。
 - 只把有限数值识别为指标；布尔值不是指标。
 - `NaN`、`Infinity` 和类型冲突必须产生明确输入诊断。
 - 数值数组不在没有显式配置时自动解释为多 seed 指标。
-- YAML 只使用安全加载，不支持任意对象构造。
+- YAML 只使用安全加载，不支持任意对象构造；重复 key、多 document 和递归结构受控失败。
+- JSON 检测重复对象 key，并以词法十进制直接构造 `Decimal`。
 
 ### 10.2 CSV
 
+- 阶段 3 已实现标准库 `csv` 读取，每一数据行对应一个 run。
 - 只支持带表头的普通二维 CSV。
 - 通过配置声明 `run_id_column`、`metadata_columns` 和 `metric_columns`。
 - 不自动猜测任意 CSV 结构。

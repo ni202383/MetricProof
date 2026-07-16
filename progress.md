@@ -30,10 +30,35 @@
 - Python 3.12 项目本体 editable 安装和 wheel 构建通过；完整 `.[dev]` 安装因离线缺少分发包受阻。
 - Python 3.13 隔离 venv 中 console script、`--help`、`--version`、`doctor` 和模块入口通过。
 - coverage、Pyright、`python -m build` 因本机未安装对应工具未通过，已在 `docs/status.md` 明确记录。
-- 已更新 `docs/status.md`，进入最终完成标准审计。- 已完成最终范围、文件、版本、构建和 Git 差异审计；除明确记录的离线工具缺失外，无待修复项目级问题。
+- 已更新 `docs/status.md`，进入最终完成标准审计。
+- 已完成最终范围、文件、版本、构建和 Git 差异审计；除明确记录的离线工具缺失外，无待修复项目级问题。
 
 ## 2026-07-16 Python 3.13 收尾
 
 - 已恢复文件化规划并重新读取正式文档、工作树和环境状态。
 - 已确认用户将 Python 基线调整为 3.13，并已安装此前缺失的覆盖率、Pyright、build 和运行时依赖。
 - 已保留用户暂存的 `.idea/` 删除，识别出 coverage 并行数据文件和 `wq` 终端输出临时文件。
+- `wq` 已按用户要求删除。
+- 阶段 1 已在 Python 3.13.9 下完成项目级验收。
+- 34 项测试通过；分支覆盖率 95.86%；Ruff、格式检查和 Pyright strict 全部通过。
+- CLI 四项入口和只读 `doctor` 通过；无隔离离线构建成功生成 sdist 与 wheel。
+- 标准隔离安装/构建仅因禁网无法下载临时构建依赖，已在状态文档中作为环境限制记录。
+
+## 2026-07-16 阶段 3
+
+- 已读取目标附件、正式设计文档、仓库约束和阶段状态，并在 Python 3.13.9 下建立 34 passed、95.86% coverage 的修改前基线。
+- 已实现严格 `.metricproof/config.yml`、版本化 schema、显式 JSON/YAML/CSV 来源配置、路径/glob 边界和集中资源上限。
+- 已实现确定性实验领域模型、有限 `Decimal` 数值解析、结构化证据与输入诊断，以及稳定 observation 身份和排序。
+- 已实现 JSON/YAML/CSV 本地读取器、application ports、跨来源归一化/冲突诊断和只读 `experiments list` / `validate` CLI。
+- 已补充正例、反例、边界、安全、CLI、应用编排和三来源集成测试。
+- 已同步 README、SPEC、ARCHITECTURE、data model、example workflow 和 status 文档；未提前实现后续阶段。
+- 已运行 `python -m pytest`：121 passed、1 skipped。
+- 已运行覆盖率：121 passed、1 skipped，92.84% branch coverage。
+- 已运行 Ruff lint、Ruff format check、Pyright strict、compileall 和 `git diff --check`，全部通过。
+- 已运行标准 `python -m build`，成功生成 sdist 与 wheel。
+- 已验证 console script、模块入口、版本、doctor、experiments help、人类输出和 JSON 输出。
+- 已用真实临时项目验证 JSON/YAML/CSV 共同归一化为 4 run、4 observation、0 diagnostic。
+- 已用 Windows 目录联接验证解析后路径逃逸被拒绝并返回退出码 2。
+- `apply_patch` 的 Windows 沙箱包装器不可用；所有仓库修改均改用先 dry-run 的标准 unified diff 补丁，未扩大写入范围。
+- 首次 build 和临时项目验证仅因受限临时目录权限失败；相同命令在正常临时目录权限下复验通过。
+- 阶段 3 实现、文档、验证和完成标准审计全部完成；未执行 commit、push 或任何远程操作。

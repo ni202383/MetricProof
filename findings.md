@@ -59,3 +59,28 @@
 - 当前环境已安装全部声明依赖和质量工具：Typer、Rich、Pydantic、PyYAML、Jinja2、pylatexenc、pytest、pytest-cov、Ruff、Pyright、build。
 - 用户已暂存删除 `.idea/` 中的五个文件；这些修改将保留。
 - `.coverage.LAPTOP-3FVD5FN9.pid24152.Xu6j7Jrx.c` 是 coverage 并行数据文件；`wq` 内容是带 ANSI 转义的 Git diff 输出，二者均属于验证/终端临时产物。
+
+## 2026-07-16 Python 3.13 最终验证
+
+- 目标命令 `python -m pytest --cov=metricproof` 在配置中固化 branch coverage 后直接通过，34 tests passed，总覆盖率 95.86%。
+- Pyright strict 在仓库标准 `.venv` 下通过：0 errors、0 warnings、0 informations。
+- `metricproof --help`、`metricproof --version`、`metricproof doctor` 和 `python -m metricproof --help` 均通过。
+- 标准隔离 `python -m build` 因禁网无法向临时环境安装 setuptools/wheel；使用相同构建后端的 `python -m build --no-isolation` 成功生成 sdist 与 wheel。
+- `wq` 是误操作产生的已跟踪终端输出文件，已根据用户明确要求删除。
+- 当前实现未越界进入实验结果读取、LaTeX 解析、Claim、规则或正式报告。
+- 构建元数据已迁移到 SPDX `Apache-2.0` 表达式，并将 setuptools 构建基线调整为 `>=77`，最终构建不再输出许可证弃用警告。
+
+## 2026-07-16 阶段 3 实现与验收发现
+
+- 阶段 3 的安全边界需要在配置层和格式适配器层同时执行：配置解析拒绝越界路径，读取器再次验证解析后的真实路径。
+- JSON 和 YAML 数字必须从词法文本构造 `Decimal`；任何经二进制 `float` 的中转都会破坏确定性精度。
+- YAML 安全加载还不足以覆盖产品约束，因此另外拒绝重复 key、多文档、递归别名、非字符串 key 和超深结构。
+- 结构化来源必须显式声明 metric、metadata 和 run selector；自动猜测只会造成不可审计的高置信度误绑定。
+- CSV 使用标准库即可满足当前范围；显式列映射、严格行宽与行数上限比引入 pandas 更小、更可解释。
+- 同一 run 的跨来源合并以稳定 source 顺序进行；重复 metric、metadata 和 config reference 冲突形成结构化阻断诊断，不静默覆盖。
+- CLI 的机器输出与人类输出必须完全分离：`--json` 只向 stdout 写稳定 JSON，诊断写 stderr，配置错误和输入错误分别使用退出码 2 与 3。
+- 自动测试最终为 121 passed、1 skipped，branch coverage 92.84%；跳过项仅因当前 Windows 账户无法创建符号链接。
+- 真实 Windows 目录联接测试补充验证了链接逃逸：越界来源被拒绝，`experiments validate` 返回退出码 2。
+- 三格式临时项目证明 JSON、YAML、CSV 可在一个 catalog 中确定性归一化为 4 个 run、4 个 observation、0 个 diagnostic。
+- 阶段 3 没有进入 LaTeX、Claim、论文规则、正式报告、Git 证据、数据库、Web、插件或联网范围。
+- 目标附件的 Python 3.12 文本已被仓库当前正式 Python 3.13 决策取代；本阶段在 Python 3.13.9 上完成验收。
