@@ -364,7 +364,7 @@ def test_domain_invariants_reject_invalid_locations_and_values() -> None:
     with pytest.raises(ValueError):
         SourceLocation("result.csv", line=2, end_line=1)
     with pytest.raises(ValueError):
-        SourceLocation("result.csv", char_start=4, char_end=4)
+        SourceLocation("result.csv", char_start=4, char_end=3)
 
 
 def test_experiments_cli_maps_interrupt_and_internal_error_without_secrets(

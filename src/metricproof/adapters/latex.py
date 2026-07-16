@@ -8,6 +8,7 @@ from dataclasses import dataclass, replace
 from decimal import Decimal, InvalidOperation
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
+from metricproof.adapters.latex_tables import parse_latex_tables
 from metricproof.adapters.limits import (
     MAX_LATEX_CANDIDATES,
     MAX_LATEX_CONTEXT_CHARS,
@@ -34,12 +35,15 @@ from metricproof.domain.paper import (
     LatexSourceDocument,
     LatexSourceGraph,
     LatexSyntacticContext,
+    LatexTable,
+    LatexTableReliability,
     NumericCandidateKind,
     PaperScanResult,
     PaperScanStatistics,
     RawNumericCandidate,
     candidate_sort_key,
     include_edge_sort_key,
+    table_sort_key,
 )
 
 _NUMBER_RE = re.compile(r"[+-]?(?:(?:\d+\.\d+)|(?:\.\d+)|(?:\d+))(?:[eE][+-]?\d+)?")
@@ -101,6 +105,12 @@ class _ParsedDocument:
     document: LatexSourceDocument
     includes: tuple[_IncludeDirective, ...]
     candidates: tuple[_ProvisionalCandidate, ...]
+    text: str
+    masked_text: str
+    line_map: _LineMap
+
+    def location(self, start: int, end: int) -> SourceLocation:
+        return self.line_map.location(self.document.path, start, end)
 
 
 @dataclass(frozen=True, slots=True)
@@ -192,7 +202,9 @@ class _ScanSession:
             )
 
         candidates = self._materialize_candidates()
-        diagnostics = tuple(sorted(self.diagnostics, key=diagnostic_sort_key))
+        tables = self._materialize_tables(candidates)
+        diagnostics_by_id = {item.diagnostic_id: item for item in self.diagnostics}
+        diagnostics = tuple(sorted(diagnostics_by_id.values(), key=diagnostic_sort_key))
         documents = tuple(
             sorted(
                 (parsed.document for parsed in self.documents.values()),
@@ -214,8 +226,19 @@ class _ScanSession:
                 total_bytes=self.total_bytes,
                 candidate_count=len(candidates),
                 diagnostic_count=len(diagnostics),
+                table_count=len(tables),
+                parsed_table_count=sum(
+                    item.reliability is LatexTableReliability.PARSED for item in tables
+                ),
+                degraded_table_count=sum(
+                    item.reliability is LatexTableReliability.DEGRADED for item in tables
+                ),
+                unsupported_table_count=sum(
+                    item.reliability is LatexTableReliability.UNSUPPORTED for item in tables
+                ),
             ),
             complete=self.complete,
+            tables=tables,
         )
 
     def _visit(
@@ -600,6 +623,27 @@ class _ScanSession:
             )
         return tuple(sorted(candidates, key=candidate_sort_key))
 
+    def _materialize_tables(
+        self,
+        candidates: tuple[RawNumericCandidate, ...],
+    ) -> tuple[LatexTable, ...]:
+        candidates_by_path: dict[str, list[RawNumericCandidate]] = {}
+        for candidate in candidates:
+            candidates_by_path.setdefault(candidate.location.path, []).append(candidate)
+        tables: list[LatexTable] = []
+        for path, parsed in self.documents.items():
+            result = parse_latex_tables(
+                parsed.text,
+                parsed.masked_text,
+                path,
+                tuple(candidates_by_path.get(path, ())),
+                parsed.location,
+            )
+            tables.extend(result.tables)
+            self.diagnostics.extend(result.diagnostics)
+            self.complete = self.complete and result.complete
+        return tuple(sorted(tables, key=table_sort_key))
+
     def _limitation(
         self,
         *,
@@ -648,6 +692,7 @@ def _scan_document(
     candidate_budget: int,
 ) -> tuple[_ParsedDocument, tuple[InputDiagnostic, ...], bool, SourceLocation | None]:
     line_map = _LineMap(text)
+    masked = list(text)
     includes: list[_IncludeDirective] = []
     candidates: list[_ProvisionalCandidate] = []
     diagnostics: list[InputDiagnostic] = []
@@ -666,7 +711,9 @@ def _scan_document(
         if character == "%" and not _is_escaped(text, index):
             pending_command = None
             newline = text.find("\n", index)
-            index = len(text) if newline < 0 else newline
+            comment_end = len(text) if newline < 0 else newline
+            _mask_source_range(masked, index, comment_end)
+            index = comment_end
             continue
         if character == "\\":
             command, command_end = _read_command(text, index)
@@ -700,8 +747,10 @@ def _scan_document(
                         )
                     )
                     complete = False
+                    _mask_source_range(masked, index, len(text))
                     index = len(text)
                 else:
+                    _mask_source_range(masked, index, verb_end)
                     index = verb_end
                 pending_command = None
                 continue
@@ -753,9 +802,12 @@ def _scan_document(
                                 )
                             )
                             complete = False
+                            _mask_source_range(masked, index, len(text))
                             index = len(text)
                             continue
-                        index = closing + len(marker)
+                        masked_end = closing + len(marker)
+                        _mask_source_range(masked, index, masked_end)
+                        index = masked_end
                         pending_command = None
                         last_command = (command, index)
                         continue
@@ -896,6 +948,9 @@ def _scan_document(
             document=document,
             includes=tuple(includes),
             candidates=tuple(candidates),
+            text=text,
+            masked_text="".join(masked),
+            line_map=line_map,
         ),
         tuple(diagnostics),
         complete,
@@ -999,12 +1054,12 @@ def _valid_number_boundaries(text: str, start: int, end: int) -> bool:
 def _inside_url_or_filename(text: str, start: int) -> bool:
     token_start = start
     while token_start > 0 and not text[token_start - 1].isspace():
-        if text[token_start - 1] in "{}[]()<>\"'":
+        if text[token_start - 1] in "{}[]()<>\\\"'":
             break
         token_start -= 1
     token_end = start
     while token_end < len(text) and not text[token_end].isspace():
-        if text[token_end] in "{}[]()<>\"'":
+        if text[token_end] in "{}[]()<>\\\"'":
             break
         token_end += 1
     token = text[token_start:token_end]
@@ -1117,3 +1172,9 @@ def _limitation_diagnostic(
         evidence_details=details,
     )
     return replace(diagnostic, kind=DiagnosticKind.LIMITATION)
+
+
+def _mask_source_range(masked: list[str], start: int, end: int) -> None:
+    for index in range(start, end):
+        if masked[index] not in {"\r", "\n"}:
+            masked[index] = " "

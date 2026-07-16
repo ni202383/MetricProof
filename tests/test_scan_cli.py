@@ -47,6 +47,7 @@ def test_scan_help_and_root_help_are_available() -> None:
     assert scan_help.exit_code == ExitCode.SUCCESS
     assert "--json" in scan_help.stdout
     assert "--show-all" in scan_help.stdout
+    assert "--show-tables" in scan_help.stdout
     assert "--file" in scan_help.stdout
 
 
@@ -86,10 +87,13 @@ def test_scan_json_is_clean_parseable_and_stable(
     assert first.stdout == second.stdout
     assert first.stderr == ""
     payload = json.loads(first.stdout)
-    assert payload["result_type"] == "raw_numeric_candidates"
+    assert payload["schema_version"] == "2"
+    assert payload["result_type"] == "paper_scan"
     assert payload["summary"]["raw_candidate_count"] == 2
     assert payload["candidates"][0]["value"]["canonical"] == "0.872"
     assert payload["candidates"][0]["location"]["char_start"] is not None
+    assert payload["summary"]["table_count"] == 0
+    assert payload["tables"] == []
 
 
 def test_scan_file_filters_only_a_configured_graph_document(
@@ -195,3 +199,102 @@ def test_scan_maps_interrupt_and_internal_errors_without_traceback_or_secret(
     assert failed.stderr == ""
     assert "secret detail" not in failed.stdout
     assert json.loads(failed.stdout)["error"]["code"] == "MP_INTERNAL"
+
+
+def test_scan_table_summary_show_tables_and_versioned_json(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_project(
+        tmp_path,
+        paper_text=r"""\begin{table}
+\caption{Main results}
+\label{tab:main}
+\begin{tabular}{cc}
+\toprule
+Model & Score \\
+A & baseline 84.1, ours \textbf{87.2} \\
+\multicolumn{2}{c}{\underline{Total 90}} \\
+\bottomrule
+\end{tabular}
+\end{table}
+""",
+    )
+    monkeypatch.chdir(tmp_path)
+
+    summary = runner.invoke(cli_main.app, ["scan"])
+    assert summary.exit_code == ExitCode.SUCCESS
+    assert "1 table(s) (1 parsed, 0 degraded, 0 unsupported)" in summary.stdout
+    assert "MetricProof LaTeX tables" not in summary.stdout
+
+    detailed = runner.invoke(cli_main.app, ["scan", "--show-tables"])
+    assert detailed.exit_code == ExitCode.SUCCESS
+    assert "MetricProof LaTeX tables" in detailed.stdout
+    assert "Main results / tab:main" in detailed.stdout
+    assert "Table 1 cells: paper/main.tex" in detailed.stdout
+    assert "87.2" in detailed.stdout
+    assert "bold" in detailed.stdout
+    assert "90" in detailed.stdout
+    assert "underline" in detailed.stdout
+
+    machine = runner.invoke(cli_main.app, ["scan", "--json"])
+    assert machine.exit_code == ExitCode.SUCCESS
+    assert machine.stderr == ""
+    payload = json.loads(machine.stdout)
+    assert payload["schema_version"] == "2"
+    assert payload["result_type"] == "paper_scan"
+    assert payload["summary"]["table_count"] == 1
+    table = payload["tables"][0]
+    assert table["caption"]["normalized_text"] == "Main results"
+    assert table["label"]["normalized_text"] == "tab:main"
+    assert table["column_spec"]["expected_column_count"] == 2
+    assert table["location"]["char_start"] is not None
+    first_numeric = table["rows"][1]["cells"][1]["numeric_references"]
+    assert [item["raw_text"] for item in first_numeric] == ["84.1", "87.2"]
+    assert first_numeric[0]["formatting"] == []
+    assert first_numeric[1]["formatting"] == ["bold"]
+
+
+def test_scan_show_tables_reports_degraded_reason(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_project(
+        tmp_path,
+        paper_text=(
+            r"\begin{tabular}{cc}"
+            r"\multirow{2}{*}{Group} & 1 \\"
+            r"A & 2 \\"
+            r"\end{tabular}"
+        ),
+    )
+    monkeypatch.chdir(tmp_path)
+
+    result = runner.invoke(cli_main.app, ["scan", "--show-tables"])
+
+    assert result.exit_code == ExitCode.SUCCESS
+    assert "1 table(s) (0 parsed, 1 degraded, 0 unsupported)" in result.stdout
+    assert "MPW_LATEX_MULTIROW_UNSUPPORTED" in result.stdout
+    assert "MPW_LATEX_MULTIROW_UNSUPPORTED" in result.stderr
+
+
+def test_scan_file_filters_tables_as_well_as_candidates(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_project(
+        tmp_path,
+        paper_text=r"main 1 \begin{tabular}{c}10\end{tabular} \input{section}",
+    )
+    (tmp_path / "paper" / "section.tex").write_text(
+        r"section 2 \begin{tabular}{c}20\end{tabular}",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+
+    selected = runner.invoke(
+        cli_main.app,
+        ["scan", "--json", "--file", r"paper\section.tex"],
+    )
+
+    assert selected.exit_code == ExitCode.SUCCESS
+    payload = json.loads(selected.stdout)
+    assert payload["summary"]["table_count"] == 1
+    assert [item["location"]["path"] for item in payload["tables"]] == ["paper/section.tex"]

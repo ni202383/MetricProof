@@ -31,6 +31,8 @@ from metricproof.application.ports import (
 from metricproof.domain.models import ExperimentCatalog, InputDiagnostic, ScalarValue
 from metricproof.domain.paper import (
     LatexSyntacticContext,
+    LatexTable,
+    LatexTableCell,
     PaperScanResult,
     RawNumericCandidate,
 )
@@ -108,11 +110,18 @@ def scan(
             help="Also show low-context command-argument and unknown candidates.",
         ),
     ] = False,
+    show_tables: Annotated[
+        bool,
+        typer.Option(
+            "--show-tables",
+            help="Show parsed table, row, cell, numeric, and formatting details.",
+        ),
+    ] = False,
     file_path: Annotated[
         str | None,
         typer.Option(
             "--file",
-            help="Show candidates from one .tex file already in the configured graph.",
+            help="Show candidates and tables from one .tex graph file.",
         ),
     ] = None,
 ) -> None:
@@ -156,7 +165,7 @@ def scan(
     if json_output:
         typer.echo(_json_dump(_scan_payload(project_root, configuration, result, displayed)))
     else:
-        _render_scan_result(result, displayed)
+        _render_scan_result(result, displayed, show_tables=show_tables)
         _render_input_diagnostics(result.diagnostics, title="LaTeX scan diagnostics")
     if result.has_blocking_errors:
         raise typer.Exit(code=ExitCode.INPUT_ERROR)
@@ -406,9 +415,9 @@ def _render_scan_error(
         typer.echo(
             _json_dump(
                 {
-                    "schema_version": "1",
+                    "schema_version": "2",
                     "command": "scan",
-                    "result_type": "raw_numeric_candidates",
+                    "result_type": "paper_scan",
                     "ok": False,
                     "error": {
                         "code": code,
@@ -442,37 +451,130 @@ def _displayed_candidates(
 def _render_scan_result(
     result: PaperScanResult,
     displayed: tuple[RawNumericCandidate, ...],
+    *,
+    show_tables: bool,
 ) -> None:
     typer.echo(
         f"LaTeX raw numeric scan: {result.statistics.scanned_file_count} file(s), "
         f"{result.statistics.candidate_count} raw candidate(s), "
         f"{len(displayed)} displayed, "
+        f"{result.statistics.table_count} table(s) "
+        f"({result.statistics.parsed_table_count} parsed, "
+        f"{result.statistics.degraded_table_count} degraded, "
+        f"{result.statistics.unsupported_table_count} unsupported), "
         f"{result.statistics.diagnostic_count} diagnostic(s), "
         f"complete={str(result.complete).lower()}."
     )
-    if not displayed:
+    if displayed:
+        console = Console(file=sys.stdout, color_system=None, force_terminal=False, width=180)
+        table = Table(title="MetricProof raw numeric candidates", show_lines=True)
+        table.add_column("File")
+        table.add_column("Line", justify="right")
+        table.add_column("Column", justify="right")
+        table.add_column("Raw")
+        table.add_column("Canonical")
+        table.add_column("Context")
+        table.add_column("Command")
+        for candidate in displayed:
+            table.add_row(
+                candidate.location.path,
+                str(candidate.location.line or ""),
+                str(candidate.location.column or ""),
+                candidate.raw_text,
+                _candidate_canonical(candidate),
+                candidate.context.value,
+                candidate.command or "",
+            )
+        console.print(table)
+    else:
         typer.echo("No raw numeric candidates matched the current display filter.")
+    if show_tables:
+        _render_table_details(result.tables)
+
+
+def _render_table_details(tables: tuple[LatexTable, ...]) -> None:
+    if not tables:
+        typer.echo("No LaTeX tables were found.")
         return
-    console = Console(file=sys.stdout, color_system=None, force_terminal=False, width=180)
-    table = Table(title="MetricProof raw numeric candidates", show_lines=True)
-    table.add_column("File")
-    table.add_column("Line", justify="right")
-    table.add_column("Column", justify="right")
-    table.add_column("Raw")
-    table.add_column("Canonical")
-    table.add_column("Context")
-    table.add_column("Command")
-    for candidate in displayed:
-        table.add_row(
-            candidate.location.path,
-            str(candidate.location.line or ""),
-            str(candidate.location.column or ""),
-            candidate.raw_text,
-            _candidate_canonical(candidate),
-            candidate.context.value,
-            candidate.command or "",
+    console = Console(file=sys.stdout, color_system=None, force_terminal=False, width=200)
+    overview = Table(title="MetricProof LaTeX tables", show_lines=True)
+    overview.add_column("#", justify="right")
+    overview.add_column("File")
+    overview.add_column("Environment")
+    overview.add_column("Caption / label")
+    overview.add_column("Rows", justify="right")
+    overview.add_column("Expected", justify="right")
+    overview.add_column("Reliability")
+    overview.add_column("Reasons")
+    for table_index, table in enumerate(tables, start=1):
+        metadata = " / ".join(
+            item
+            for item in (
+                table.caption.normalized_text if table.caption else "",
+                table.label.normalized_text if table.label else "",
+            )
+            if item
         )
-    console.print(table)
+        overview.add_row(
+            str(table_index),
+            table.location.path,
+            table.environment.value,
+            _short_text(metadata),
+            str(len(table.rows)),
+            "" if table.expected_column_count is None else str(table.expected_column_count),
+            table.reliability.value,
+            ", ".join(item.code for item in table.diagnostics),
+        )
+    console.print(overview)
+    for table_index, table in enumerate(tables, start=1):
+        if not table.rows:
+            continue
+        cells = Table(
+            title=f"Table {table_index} cells: {table.location.path}",
+            show_lines=True,
+        )
+        cells.add_column("Row", justify="right")
+        cells.add_column("Cell", justify="right")
+        cells.add_column("Logical", justify="right")
+        cells.add_column("Row width", justify="right")
+        cells.add_column("Span", justify="right")
+        cells.add_column("Content")
+        cells.add_column("Numeric candidates")
+        cells.add_column("Formatting")
+        cells.add_column("Reliability / limitations")
+        for row in table.rows:
+            for cell in row.cells:
+                cells.add_row(
+                    str(row.row_index),
+                    str(cell.physical_index),
+                    str(cell.logical_column_start),
+                    str(row.logical_column_count),
+                    str(cell.logical_column_span),
+                    _short_text(cell.normalized_text),
+                    _cell_numeric_summary(cell),
+                    ", ".join(item.kind.value for item in cell.formatting),
+                    " / ".join((cell.reliability.value, *cell.limitations)),
+                )
+        console.print(cells)
+
+
+def _cell_numeric_summary(cell: LatexTableCell) -> str:
+    return ", ".join(
+        (
+            reference.candidate.raw_text
+            + (
+                f" [{'/'.join(item.value for item in reference.formatting)}]"
+                if reference.formatting
+                else ""
+            )
+        )
+        for reference in cell.numeric_references
+    )
+
+
+def _short_text(value: str, limit: int = 72) -> str:
+    collapsed = " ".join(value.split())
+    return collapsed if len(collapsed) <= limit else f"{collapsed[: limit - 1]}…"
 
 
 def _candidate_canonical(candidate: RawNumericCandidate) -> str:
@@ -489,9 +591,9 @@ def _scan_payload(
     displayed: tuple[RawNumericCandidate, ...],
 ) -> dict[str, object]:
     return {
-        "schema_version": "1",
+        "schema_version": "2",
         "command": "scan",
-        "result_type": "raw_numeric_candidates",
+        "result_type": "paper_scan",
         "ok": not result.has_blocking_errors,
         "complete": result.complete,
         "project": project_root.name,
@@ -501,6 +603,10 @@ def _scan_payload(
             "total_bytes": result.statistics.total_bytes,
             "raw_candidate_count": result.statistics.candidate_count,
             "displayed_candidate_count": len(displayed),
+            "table_count": result.statistics.table_count,
+            "parsed_table_count": result.statistics.parsed_table_count,
+            "degraded_table_count": result.statistics.degraded_table_count,
+            "unsupported_table_count": result.statistics.unsupported_table_count,
             "diagnostic_count": result.statistics.diagnostic_count,
         },
         "graph": {
@@ -524,6 +630,7 @@ def _scan_payload(
             ],
         },
         "candidates": [_candidate_payload(candidate) for candidate in displayed],
+        "tables": [_table_payload(table) for table in result.tables],
         "diagnostics": [_diagnostic_payload(item) for item in result.diagnostics],
     }
 
@@ -544,6 +651,115 @@ def _candidate_payload(candidate: RawNumericCandidate) -> dict[str, object]:
         "suffix": candidate.suffix,
         "entry_paths": list(candidate.entry_paths),
         "include_chain": list(candidate.include_chain),
+    }
+
+
+def _table_payload(table: LatexTable) -> dict[str, object]:
+    return {
+        "environment": table.environment.value,
+        "reliability": table.reliability.value,
+        "location": _location_payload(table.location),
+        "container": (
+            {
+                "environment": table.container_environment.value,
+                "location": _location_payload(table.container_location),
+            }
+            if table.container_environment is not None and table.container_location is not None
+            else None
+        ),
+        "caption": _table_text_payload(table.caption),
+        "label": _table_text_payload(table.label),
+        "column_spec": (
+            {
+                "raw_latex": table.column_spec.raw_latex,
+                "expected_column_count": table.column_spec.expected_column_count,
+                "location": _location_payload(table.column_spec.location),
+            }
+            if table.column_spec is not None
+            else None
+        ),
+        "rows": [
+            {
+                "row_index": row.row_index,
+                "logical_column_count": row.logical_column_count,
+                "reliability": row.reliability.value,
+                "location": _location_payload(row.location),
+                "structure_markers": [
+                    _structure_marker_payload(marker) for marker in row.structure_markers
+                ],
+                "cells": [_table_cell_payload(cell) for cell in row.cells],
+            }
+            for row in table.rows
+        ],
+        "structure_markers": [
+            _structure_marker_payload(marker) for marker in table.structure_markers
+        ],
+        "diagnostics": [_diagnostic_payload(item) for item in table.diagnostics],
+    }
+
+
+def _table_text_payload(value: object) -> dict[str, object] | None:
+    from metricproof.domain.paper import LatexTableText
+
+    if value is None:
+        return None
+    if not isinstance(value, LatexTableText):
+        raise TypeError("table text payload requires LatexTableText")
+    return {
+        "raw_text": value.raw_text,
+        "normalized_text": value.normalized_text,
+        "location": _location_payload(value.location),
+    }
+
+
+def _structure_marker_payload(value: object) -> dict[str, object]:
+    from metricproof.domain.paper import LatexTableStructureMarker
+
+    if not isinstance(value, LatexTableStructureMarker):
+        raise TypeError("structure marker payload requires LatexTableStructureMarker")
+    return {
+        "kind": value.kind.value,
+        "raw_latex": value.raw_latex,
+        "location": _location_payload(value.location),
+    }
+
+
+def _table_cell_payload(cell: LatexTableCell) -> dict[str, object]:
+    return {
+        "physical_index": cell.physical_index,
+        "logical_column_start": cell.logical_column_start,
+        "logical_column_span": cell.logical_column_span,
+        "multicolumn_format": cell.multicolumn_format,
+        "location": _location_payload(cell.location),
+        "content_location": _location_payload(cell.content_location),
+        "raw_latex": cell.raw_latex,
+        "normalized_text": cell.normalized_text,
+        "is_empty": cell.is_empty,
+        "reliability": cell.reliability.value,
+        "limitations": list(cell.limitations),
+        "formatting": [
+            {
+                "kind": item.kind.value,
+                "location": _location_payload(item.location),
+                "content_location": _location_payload(item.content_location),
+            }
+            for item in cell.formatting
+        ],
+        "numeric_references": [
+            {
+                "candidate_kind": reference.candidate.kind.value,
+                "raw_text": reference.candidate.raw_text,
+                "value": _numeric_payload(reference.candidate.value),
+                "uncertainty": (
+                    _numeric_payload(reference.candidate.uncertainty)
+                    if reference.candidate.uncertainty is not None
+                    else None
+                ),
+                "location": _location_payload(reference.candidate.location),
+                "formatting": [item.value for item in reference.formatting],
+            }
+            for reference in cell.numeric_references
+        ],
     }
 
 

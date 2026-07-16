@@ -6,10 +6,19 @@ import pytest
 
 from metricproof.domain.models import NumericKind, NumericUnit, NumericValue, SourceLocation
 from metricproof.domain.paper import (
+    LatexCellFormatting,
+    LatexCellNumericReference,
+    LatexColumnSpec,
+    LatexFormattingKind,
     LatexIncludeEdge,
     LatexSourceDocument,
     LatexSourceGraph,
     LatexSyntacticContext,
+    LatexTable,
+    LatexTableCell,
+    LatexTableKind,
+    LatexTableReliability,
+    LatexTableRow,
     NumericCandidateKind,
     PaperScanResult,
     PaperScanStatistics,
@@ -121,4 +130,123 @@ def test_graph_rejects_unstable_document_order() -> None:
                 LatexSourceDocument("a.tex", 1, 1),
             ),
             edges=(),
+        )
+
+
+def test_source_location_allows_exact_zero_width_empty_cell_range() -> None:
+    location = SourceLocation(
+        path="paper/main.tex",
+        line=1,
+        column=4,
+        end_line=1,
+        end_column=4,
+        char_start=3,
+        char_end=3,
+    )
+    assert location.char_start == location.char_end == 3
+
+
+def test_table_models_reference_existing_candidate_and_validate_logical_width() -> None:
+    location = _location()
+    candidate = RawNumericCandidate(
+        kind=NumericCandidateKind.VALUE,
+        raw_text="87.2",
+        value=NumericValue("87.2", Decimal("87.2")),
+        location=location,
+        context=LatexSyntacticContext.TABLE_ENVIRONMENT,
+        environments=("tabular",),
+        entry_paths=("paper/main.tex",),
+        include_chain=("paper/main.tex",),
+    )
+    formatting = LatexCellFormatting(
+        kind=LatexFormattingKind.BOLD,
+        location=location,
+        content_location=location,
+    )
+    reference = LatexCellNumericReference(
+        candidate=candidate,
+        formatting=(LatexFormattingKind.BOLD,),
+    )
+    cell = LatexTableCell(
+        physical_index=0,
+        logical_column_start=0,
+        logical_column_span=1,
+        multicolumn_format=None,
+        location=location,
+        content_location=location,
+        raw_latex="87.2",
+        normalized_text="87.2",
+        is_empty=False,
+        numeric_references=(reference,),
+        formatting=(formatting,),
+        reliability=LatexTableReliability.PARSED,
+    )
+    row = LatexTableRow(
+        row_index=0,
+        location=location,
+        cells=(cell,),
+        logical_column_count=1,
+        structure_markers=(),
+        reliability=LatexTableReliability.PARSED,
+    )
+    table = LatexTable(
+        environment=LatexTableKind.TABULAR,
+        location=location,
+        container_environment=None,
+        container_location=None,
+        caption=None,
+        label=None,
+        column_spec=LatexColumnSpec("{c}", location, 1),
+        rows=(row,),
+        structure_markers=(),
+        diagnostics=(),
+        reliability=LatexTableReliability.PARSED,
+    )
+    statistics = PaperScanStatistics(1, 10, 1, 0, 1, 1, 0, 0)
+    result = PaperScanResult(
+        graph=LatexSourceGraph(
+            entry_paths=("paper/main.tex",),
+            documents=(LatexSourceDocument("paper/main.tex", 10, 10),),
+            edges=(),
+        ),
+        candidates=(candidate,),
+        diagnostics=(),
+        statistics=statistics,
+        complete=True,
+        tables=(table,),
+    )
+    reference_candidate = result.tables[0].rows[0].cells[0].numeric_references[0].candidate
+    assert reference_candidate is candidate
+    assert result.tables[0].expected_column_count == 1
+
+
+def test_scan_statistics_require_complete_table_reliability_partition() -> None:
+    with pytest.raises(ValueError, match="reliability counts"):
+        PaperScanStatistics(1, 10, 0, 0, table_count=1)
+
+
+def test_row_rejects_logical_count_that_disagrees_with_cell_spans() -> None:
+    location = _location()
+    cell = LatexTableCell(
+        physical_index=0,
+        logical_column_start=0,
+        logical_column_span=2,
+        multicolumn_format="c",
+        location=location,
+        content_location=location,
+        raw_latex="value",
+        normalized_text="value",
+        is_empty=False,
+        numeric_references=(),
+        formatting=(),
+        reliability=LatexTableReliability.PARSED,
+    )
+    with pytest.raises(ValueError, match="logical column count"):
+        LatexTableRow(
+            row_index=0,
+            location=location,
+            cells=(cell,),
+            logical_column_count=1,
+            structure_markers=(),
+            reliability=LatexTableReliability.PARSED,
         )

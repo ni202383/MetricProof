@@ -21,7 +21,7 @@
 | `end_line` | `int >= line` | 结束行 |
 | `end_column` | `int >= 1` | 结束列 |
 | `char_start` | `int >= 0` | 文件内字符起点 |
-| `char_end` | `int > char_start` | 文件内字符终点 |
+| `char_end` | `int >= char_start` | 文件内字符终点；空单元格允许零宽范围 |
 
 `SourceLocation` 是当前定位，不作为持久化主身份。JSON/YAML selector 位置通常只填写 `path`；CSV 位置填写 `path`、`line`、`column`。阶段 4A 的 LaTeX 候选填写完整行列和字符范围。
 
@@ -77,7 +77,7 @@ max(absolute, relative × max(abs(expected), abs(observed)))
 
 ## 3. 论文模型
 
-### 3.1 阶段 4A 原始扫描模型
+### 3.1 阶段 4A/4B1 扫描模型
 
 `RawNumericCandidate` 是源码词法与基础语法事实，不是 `PaperClaim`。它包含：
 
@@ -92,8 +92,10 @@ max(absolute, relative × max(abs(expected), abs(observed)))
 `LatexSourceDocument` 保存项目相对路径与字节数；`LatexIncludeEdge` 保存来源、
 目标、include 命令和源码位置。
 
-`PaperScanResult` 包含文件图、稳定排序的原始候选、输入/limitation 诊断、
-资源统计与 `complete` 标记。阶段 4A 不产生 Claim、Claim ID、表格行列模型或链接。
+`PaperScanResult` 包含文件图、稳定排序的原始候选、基础表格、输入/limitation 诊断、
+资源统计与 `complete` 标记。`PaperScanStatistics` 同时保存 table 总数以及
+parsed/degraded/unsupported 的精确分区。阶段 4B1 仍不产生 Claim、Claim ID、
+表头/指标/最佳值语义或链接。
 
 ### 3.2 `ClaimFingerprint`（后续阶段）
 
@@ -124,37 +126,53 @@ max(absolute, relative × max(abs(expected), abs(observed)))
 
 置信度是规则证据强弱分值，不宣称统计校准概率。
 
-### 3.4 表格模型（后续阶段）
+### 3.4 阶段 4B1 基础表格模型
 
-`PaperTable`：
+基础表格模型只表达可从源码确定的结构事实：
 
-- `table_id`
-- `location`
-- `caption`
-- `label`
-- `headers`
-- `rows`
-- `limitations`
+- `LatexTableKind`：`table`、`table*` 容器归属，以及 `tabular`、`tabular*`、`longtable`、`tabularx`、`array`、`matrix`、`aligned` 环境类型；
+- `LatexTableReliability`：`parsed`、`degraded`、`unsupported`；
+- `LatexFormattingKind`：`bold`、`underline`；
+- `LatexTableStructureKind`：hline、cline 与 booktabs 结构标记。
 
-`TableCell`：
+`LatexTable` 保存：
 
-- `row_index` / `column_index`
-- `raw_text`
-- `location`
-- `numeric_value`
-- `is_bold`
-- `is_underlined`
-- `row_header`
-- `column_header`
-- `parse_reliable`
+- tabular 环境的精确 `SourceLocation`；
+- 可选 `table` / `table*` 容器类型和范围；
+- 可选 `LatexTableText` caption/label，其原文、受控规范文本和范围；
+- 可选 `LatexColumnSpec` 原始规格与可靠 `expected_column_count`；
+- 排序后的 `LatexTableRow`、尾部结构标记、诊断与可靠性。
 
-复杂跨度导致行列语义不可靠时，`parse_reliable=false`，规则不得继续比较该范围。
+`LatexTableRow` 保存连续 `row_index`、源码范围、物理单元格、逻辑列数、
+行边界结构标记和可靠性。逻辑列数等于各单元格 span 之和。
+
+`LatexTableCell` 保存：
+
+- 连续物理索引、逻辑起始列和 `logical_column_span`；
+- 可选 `multicolumn_format`；
+- 原始单元格范围与实际内容范围；
+- `raw_latex`、受控 `normalized_text`、`is_empty`；
+- 指向既有对象的 `LatexCellNumericReference`，不复制或重建数值候选；
+- 精确 `LatexCellFormatting` 命令范围和内容范围；
+- 可靠性与稳定 limitation code 集合。
+
+`LatexCellNumericReference.formatting` 逐候选记录格式。例如同一单元格中的
+`84.1` 与 `\textbf{87.2}` 分别得到空格式和 `bold`，不能用单元格级布尔值混淆。
+`\textbf{\underline{87.2}}` 可同时记录 `bold` 和 `underline`。
+
+`\multicolumn{N}{FORMAT}{CONTENT}` 只在 N 为受限正整数字面量且参数闭合时展开逻辑
+span；`multirow` 不展开跨行内容，产生 limitation 并降级。未知列类型、列数不匹配、
+未闭合上下文和恢复后的结构同样标记 degraded。`longtable`、`tabularx`、`array`、`matrix`、`aligned`
+只保留环境范围、候选和 unsupported 诊断，不伪造普通 tabular 行列。
+
+这些模型不包含 table ID、表头角色、metric/model/dataset、方向、best/second-best、
+Claim 分类或 Claim ID。
 
 ### 3.5 完整 `PaperScan`（后续阶段）
 
-- LaTeX 文件图。
-- 稳定排序的 Claim。
-- 表格。
+- LaTeX 文件图与阶段 4B1 基础表格事实。
+- 稳定排序的 Claim 与版本化身份。
+- 表头/指标等经后续阶段建立的语义。
 - 输入诊断和 limitation 诊断。
 - 指纹碰撞集合。
 

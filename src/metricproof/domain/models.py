@@ -72,8 +72,8 @@ class SourceLocation:
             raise ValueError("end_column must be at least 1")
         if self.char_start is not None and self.char_start < 0:
             raise ValueError("char_start must be non-negative")
-        if self.char_end is not None and self.char_end <= (self.char_start or 0):
-            raise ValueError("char_end must be greater than char_start")
+        if self.char_end is not None and self.char_end < (self.char_start or 0):
+            raise ValueError("char_end must not precede char_start")
 
     @property
     def display(self) -> str:

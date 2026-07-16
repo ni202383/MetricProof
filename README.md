@@ -2,10 +2,12 @@
 
 MetricProof is an open-source, local-first Python CLI for checking research artifacts with deterministic, explainable rules.
 
-Stage 4A is implemented: MetricProof can strictly load `.metricproof/config.yml`,
-read declared JSON, YAML, and CSV experiment results, and scan a controlled LaTeX
-source graph for exact `Decimal`-based raw numeric candidates. Claim semantics,
-table interpretation, linking, the five paper consistency rules, and formal HTML
+Stage 4B1 is implemented: MetricProof can strictly load `.metricproof/config.yml`,
+read declared JSON, YAML, and CSV experiment results, scan a controlled LaTeX
+source graph for exact `Decimal`-based raw numeric candidates, and retain basic
+`table`/`table*` plus `tabular`/`tabular*` row, cell, caption, label, column-spec,
+multicolumn, and formatting facts. Claim semantics, header or metric inference,
+best-value judgment, linking, the five paper consistency rules, and formal HTML
 reports are not implemented yet.
 
 ## Requirements
@@ -137,7 +139,17 @@ exclude_paths:
 dependencies, including omitted `.tex` suffixes. Each physical file is scanned
 once while candidate provenance retains every configured entry that reaches it.
 Comments, `\verb`, `verbatim`, `Verbatim`, `lstlisting`, and `minted` content are
-excluded.
+excluded. Basic tables reuse the same already-read source, mask, exact locations,
+and `RawNumericCandidate` objects. Cell separators are unescaped top-level `&`;
+row separators are top-level `\\` or `\tabularnewline`. Separators inside groups,
+math, nested environments, comments, and excluded code do not split cells.
+
+Supported structure facts include caption/label ownership, basic `l`/`c`/`r` and
+`p`/`m`/`b` column specifications, `@{...}` decorations, basic
+`\multicolumn{N}{FORMAT}{CONTENT}`, booktabs/hline markers, and candidate-specific
+`\textbf{...}` / `\underline{...}` spans. `multirow` is retained with an explicit
+degraded limitation. `longtable`, `tabularx`, `array`, `matrix`, and `aligned` are recognized as
+unsupported rather than misparsed as ordinary tabular structures.
 
 ## CLI
 
@@ -148,6 +160,7 @@ metricproof doctor
 metricproof scan
 metricproof scan --json
 metricproof scan --show-all
+metricproof scan --show-tables
 metricproof scan --file paper/section.tex
 metricproof experiments --help
 metricproof experiments list
@@ -159,12 +172,15 @@ python -m metricproof experiments --help
 
 - `experiments list` displays normalized runs, metrics, source files, and selectors.
 - `experiments validate` validates config and every source without modifying them.
-- `scan` displays raw numeric candidates and source positions from the configured
-  LaTeX graph. It does not classify them as paper claims.
+- `scan` displays raw numeric candidates plus parsed/degraded/unsupported table counts.
+  It does not classify candidates as paper claims.
 - `scan --show-all` also displays low-context command-argument and unknown candidates.
-- `scan --file` filters to a file already present in the configured dependency graph;
-  it cannot read an arbitrary path.
-- `--json` writes one stable JSON document to stdout without Rich formatting.
+- `scan --show-tables` expands table metadata, rows, short cell content, numeric
+  references, formatting, reliability, and limitation codes.
+- `scan --file` filters candidates and tables to a file already present in the
+  configured dependency graph; it cannot read an arbitrary path.
+- `scan --json` writes schema version `2` with candidates, exact table/cell ranges,
+  candidate references, and formatting to stdout without Rich formatting.
 - Invalid project configuration or file selection exits with code `2`; blocking
   input diagnostics exit with code `3`.
 
@@ -179,8 +195,11 @@ python -m metricproof experiments --help
 - MetricProof does not execute result files, TeX, Python modules, training scripts, or expressions.
 - LaTeX limits are 5,000,000 bytes per file, 25,000,000 total bytes, 1,000 files,
   include depth 32, environment depth 128, and 100,000 numeric candidates.
-- Dynamic macro expansion, external code inclusion, full TeX interpretation, and
-  table row/column semantics are intentionally unsupported.
+- Table limits are 1,000 tables, 10,000 rows per table, 1,000 physical cells per
+  row, 100,000 cells per table, 100,000 characters per cell, nesting depth 16,
+  and multicolumn span 1,000.
+- Dynamic macro expansion, external code inclusion, full TeX interpretation,
+  complex cross-row structures, and header/best-value semantics are unsupported.
 
 ## Quality checks
 
@@ -198,7 +217,7 @@ For an intentionally offline environment with local build dependencies available
 ## Not implemented yet
 
 - Paper Claim discovery, IDs, linking, migration, or `claims.yml`
-- Table row/column/header semantics and best-value interpretation
+- Table header, metric/model, direction, and best/second-best interpretation
 - `STALE_VALUE`, `WRONG_DELTA`, `MISSING_PROVENANCE`, `WRONG_BEST_MARK`, or `UNFAIR_COMPARISON`
 - Formal `check`, versioned check-result JSON, or HTML reports
 - GitHub Actions, remote services, databases, plugins, or AI integrations

@@ -13,6 +13,9 @@ from metricproof.domain.paper import (
     LatexSourceDocument,
     LatexSourceGraph,
     LatexSyntacticContext,
+    LatexTable,
+    LatexTableKind,
+    LatexTableReliability,
     NumericCandidateKind,
     PaperScanResult,
     PaperScanStatistics,
@@ -41,6 +44,30 @@ def _candidate(path: str, offset: int) -> RawNumericCandidate:
     )
 
 
+def _table(path: str, offset: int) -> LatexTable:
+    return LatexTable(
+        environment=LatexTableKind.TABULAR,
+        location=SourceLocation(
+            path=path,
+            line=1,
+            column=offset + 1,
+            end_line=1,
+            end_column=offset + 2,
+            char_start=offset,
+            char_end=offset + 1,
+        ),
+        container_environment=None,
+        container_location=None,
+        caption=None,
+        label=None,
+        column_spec=None,
+        rows=(),
+        structure_markers=(),
+        diagnostics=(),
+        reliability=LatexTableReliability.PARSED,
+    )
+
+
 class FakePaperScanner:
     def __init__(self) -> None:
         self.calls: list[tuple[Path, tuple[str, ...], tuple[str, ...]]] = []
@@ -53,6 +80,7 @@ class FakePaperScanner:
     ) -> PaperScanResult:
         self.calls.append((project_root, entry_paths, exclude_paths))
         candidates = (_candidate("paper/main.tex", 0), _candidate("paper/section.tex", 2))
+        tables = (_table("paper/main.tex", 4), _table("paper/section.tex", 6))
         return PaperScanResult(
             graph=LatexSourceGraph(
                 entry_paths=("paper/main.tex",),
@@ -64,8 +92,9 @@ class FakePaperScanner:
             ),
             candidates=candidates,
             diagnostics=(),
-            statistics=PaperScanStatistics(2, 20, 2, 0),
+            statistics=PaperScanStatistics(2, 20, 2, 0, 2, 2, 0, 0),
             complete=True,
+            tables=tables,
         )
 
 
@@ -92,6 +121,9 @@ def test_scan_paper_filters_only_an_existing_graph_file(tmp_path: Path) -> None:
         selected_file=r"paper\section.tex",
     )
     assert [item.location.path for item in result.candidates] == ["paper/section.tex"]
+    assert [item.location.path for item in result.tables] == ["paper/section.tex"]
+    assert result.statistics.table_count == 1
+    assert result.statistics.parsed_table_count == 1
     assert result.statistics.candidate_count == 1
 
 

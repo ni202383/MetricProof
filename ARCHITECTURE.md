@@ -84,7 +84,8 @@ metricproof/
 - 源位置与项目相对路径。
 - 数值、单位、显示精度与容差。
 - 阶段 4A 的 LaTeX 文件图、原始数值候选和基础语法上下文。
-- 论文 Claim 和表格结构。
+- 阶段 4B1 的基础表格、行、单元格、格式范围和可靠性事实。
+- 后续阶段的论文 Claim 与表头/指标/最佳值语义。
 - 实验 Run、MetricObservation 和配置快照。
 - DirectLink、DerivedLink、IgnoreRecord 和 ComparisonSpec。
 - Evidence、Diagnostic、Severity 和规则代码。
@@ -100,14 +101,15 @@ metricproof/
 
 ### 5.2 `ScanPaper`
 
-阶段 4A 已实现部分协调配置与 `PaperScanner` 端口，输出：
+阶段 4B1 已实现的 `ScanPaper` 协调配置与 `PaperScanner` 端口，输出：
 
 - `PaperScanResult`
 - LaTeX 文件图
 - 原始数值候选
+- 基础 LaTeX 表格、行、单元格、结构标记与格式事实
 - 输入与 limitation 诊断
 
-它不执行 Claim 分类、Claim ID 或表格语义。后续阶段只能基于该结果继续建模。
+它不执行 Claim 分类、Claim ID、表头/指标推断或最佳值判断。后续阶段只能基于该结果继续建模。
 
 ### 5.3 `LoadExperiments`
 
@@ -142,7 +144,7 @@ metricproof/
 | `ProjectFileSystem` | 安全解析项目相对路径、受控读取、原子写入、文件发现 |
 | `ConfigurationRepository` | 读取并验证 `config.yml` |
 | `ClaimRegistryRepository` | 读取、验证和原子保存 `claims.yml` |
-| `PaperScanner` | 从 LaTeX 入口生成文件图、原始数值候选和解析诊断 |
+| `PaperScanner` | 从 LaTeX 入口生成文件图、原始数值候选、基础表格事实和解析诊断 |
 | `ExperimentSourceReader` | 把 JSON/YAML/CSV 归一化为 Run 和 Observation |
 | `ExperimentConfigReader` | 读取受控配置字段及来源位置 |
 | `GitEvidenceProvider` | 只读获取仓库、commit、branch 和工作树证据 |
@@ -162,12 +164,16 @@ metricproof/
 
 ### 7.2 LaTeX
 
-采用“文件图 → 词法/基础结构解析 → Claim 分类 → 表格建模”流水线，避免一个巨大正则模拟 TeX。阶段 4A 只实现前两步：
+采用“文件图 → 词法/遮罩 → 基础表格结构 → Claim 分类 → 表格语义”流水线，避免用巨大正则模拟 TeX。阶段 4B1 实现前三步：
 
-- `LocalLatexPaperScanner` 负责静态 include、循环、缺失文件、路径边界和集中资源限制。
-- 小型确定性状态机屏蔽注释与代码环境，保留原始范围、数值语义、环境栈和基础上下文。
-- `scan_paper` 只依赖端口与领域对象；`--file` 只能过滤已构建图中的文件。
-- Claim 分类与表格语义尚未实现。
+- `LocalLatexPaperScanner` 负责静态 include、循环、缺失文件、路径边界和集中资源限制；每个物理文件只读取一次。
+- Stage 4A 状态机生成原始文本、等长注释/代码遮罩、位置映射、环境上下文与 `RawNumericCandidate`。
+- `latex_tables` 适配器只消费上述已准备数据，不重新读取文件、不生成第二套位置或数值候选。
+- 表格状态机在当前 tabular 层级跟踪花括号深度、数学上下文、嵌套环境和转义，只把顶层 `&`、`\\` 与 `\tabularnewline` 作为分隔符。
+- adapter 将解析事实转换为不可变领域对象；domain 不保存第三方 parser、文件系统或 Rich 对象。
+- `scan_paper` 只依赖端口与领域对象；`--file` 同时过滤已构建图中的候选和表格。
+- `parsed` 可供后续结构消费；`degraded` 保留恢复结果但不得当作完全可靠；`unsupported` 只确认环境边界，不伪造行列。
+- Claim 分类、Claim ID、表头/指标推断和 best/second-best 判断尚未实现。
 
 ### 7.3 实验结果
 
@@ -202,8 +208,9 @@ metricproof/
 config.yml
   → resolve paper entries
   → build LaTeX file graph
-  → extract numeric tokens/tables
-  → classify Claims
+  → extract raw numeric candidates
+  → parse bounded basic table structures
+  → classify Claims (future)
   → compute Claim fingerprints
   → PaperScan
 ```
@@ -242,6 +249,7 @@ CheckResult
 相同输入必须生成相同结果：
 
 - 文件按项目相对 POSIX 风格路径排序。
+- 基础表格按文件和字符起点排序；行、单元格、结构标记和候选引用按源码顺序排序。
 - Claim 按文件、字符起点、Claim ID 排序。
 - Observation 按 run、metric、来源选择器排序。
 - CandidateMatch 按总分降序，再按稳定身份排序。
@@ -257,7 +265,7 @@ CheckResult
 - 不执行 TeX、训练代码、任意表达式或 YAML 对象构造。
 - DerivedLink 只允许枚举操作，不允许 `eval` / `exec`。
 - HTML 中所有用户文本转义。
-- 文件大小、include 深度和文件数量应具有可配置或内置上限。
+- 文件大小、include 深度、文件数量、表格数、行/单元格数、单元格长度、表格嵌套和 multicolumn span 具有集中内置上限。
 - Git 子进程禁止 shell，限制命令集合并设置超时。
 
 ## 11. 错误传播
@@ -296,4 +304,5 @@ CheckResult
 - 核心领域不依赖 Pydantic、Typer、Rich、Jinja2 或 Git。
 - 所有项目路径以 `pathlib.Path` 进入边界，以项目相对路径进入领域。
 - CLI 最终命令集合固定为 `init`、`scan`、`link`、`check`、`report`，可增加辅助子命令但不得替换核心流程。
+- `PaperScanResult.tables` 是后续 Claim/表格语义阶段唯一允许消费的基础表格事实来源。
 - `CheckResult` 是所有报告格式的唯一事实来源。

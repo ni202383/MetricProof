@@ -7,7 +7,11 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from metricproof.application.configuration import ProjectConfiguration
 from metricproof.application.input_errors import ProjectConfigurationError
 from metricproof.application.ports import PaperScanner
-from metricproof.domain.paper import PaperScanResult, PaperScanStatistics
+from metricproof.domain.paper import (
+    LatexTableReliability,
+    PaperScanResult,
+    PaperScanStatistics,
+)
 
 
 def scan_paper(
@@ -46,6 +50,7 @@ def scan_paper(
     candidates = tuple(
         candidate for candidate in result.candidates if candidate.location.path == normalized
     )
+    tables = tuple(table for table in result.tables if table.location.path == normalized)
     return PaperScanResult(
         graph=result.graph,
         candidates=candidates,
@@ -55,8 +60,19 @@ def scan_paper(
             total_bytes=result.statistics.total_bytes,
             candidate_count=len(candidates),
             diagnostic_count=len(result.diagnostics),
+            table_count=len(tables),
+            parsed_table_count=sum(
+                table.reliability is LatexTableReliability.PARSED for table in tables
+            ),
+            degraded_table_count=sum(
+                table.reliability is LatexTableReliability.DEGRADED for table in tables
+            ),
+            unsupported_table_count=sum(
+                table.reliability is LatexTableReliability.UNSUPPORTED for table in tables
+            ),
         ),
         complete=result.complete,
+        tables=tables,
     )
 
 
