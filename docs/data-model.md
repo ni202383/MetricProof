@@ -1,0 +1,456 @@
+# MetricProof 数据模型
+
+## 1. 设计原则
+
+- 领域模型表达语义，不携带 Typer、Rich、Jinja2 或具体 YAML/JSON 实现。
+- 持久化模型使用 Pydantic 严格验证，领域模型可使用不可变 dataclass 或等价明确类型。
+- 所有项目文件位置保存为项目相对、POSIX 风格路径；绝对路径只存在于文件系统适配器内部。
+- 所有可参与计算的十进制值以 `Decimal` 表示，序列化为字符串以避免浮点漂移。
+- 身份、位置和显示文本分开：文件插行可以改变位置，但不应必然改变身份。
+- 所有集合输出都定义稳定排序。
+
+## 2. 基础值对象
+
+### 2.1 `SourceLocation`
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `path` | `ProjectPath` | 项目相对路径 |
+| `line` | `int >= 1` | 起始行 |
+| `column` | `int >= 1` | 起始列 |
+| `end_line` | `int >= line` | 结束行 |
+| `end_column` | `int >= 1` | 结束列 |
+| `char_start` | `int >= 0` | 文件内字符起点 |
+| `char_end` | `int > char_start` | 文件内字符终点 |
+
+`SourceLocation` 是当前定位，不作为持久化主身份。
+
+### 2.2 `NumericValue`
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `raw_text` | `str` | 论文或结果文件中的原始表示 |
+| `parsed` | `Decimal` | 解析后的字面值 |
+| `canonical` | `Decimal` | 进入比较语义后的规范值 |
+| `unit` | `NumericUnit` | `scalar`、`ratio`、`percent_points` 等 |
+| `kind` | `NumericKind` | integer、decimal、percent、scientific、mean_std、range |
+| `decimal_places` | `int | None` | 显示小数位数 |
+| `scale` | `Decimal` | `canonical = parsed × scale` |
+
+例：
+
+| 原文 | parsed | scale | canonical | unit |
+|---|---:|---:|---:|---|
+| `0.872` | 0.872 | 1 | 0.872 | scalar |
+| `87.2\%` | 87.2 | 0.01 | 0.872 | ratio |
+| `3.1 points` | 3.1 | 1 | 3.1 | percent_points |
+
+普通 `0.872` 是否代表比例由链接和指标语义决定，解析器不得仅凭数值范围猜测。
+
+### 2.3 `NumericTolerance`
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `absolute` | `Decimal >= 0` | 绝对容差 |
+| `relative` | `Decimal >= 0` | 相对容差 |
+
+有效容差：
+
+```text
+max(absolute, relative × max(abs(expected), abs(observed)))
+```
+
+显示精度区间独立计算，再由有效容差扩展。
+
+### 2.4 枚举
+
+- `Severity`: `info`、`warning`、`error`
+- `RuleCode`: 五条首版规则代码
+- `DiagnosticKind`: `rule`、`input`、`limitation`、`internal`
+- `MetricDirection`: `higher`、`lower`
+- `ClaimKind`: `body_value`、`table_cell`、`derived_value`
+- `ClaimClassification`: `experimental`、`non_experimental`、`uncertain`
+- `LinkStatus`: `active`、`ignored`、`broken`、`ambiguous`
+- `DerivedOperation`: `subtraction`、`relative_change`、`mean`、`standard_deviation`
+- `StdDevMode`: `sample`、`population`
+
+## 3. 论文模型
+
+### 3.1 `ClaimFingerprint`
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `version` | `str` | 指纹算法版本 |
+| `digest` | `str` | 固定长度摘要 |
+| `path` | `ProjectPath` | 项目相对文件 |
+| `structural_anchor` | `str | None` | section、table label、行列头等规范锚点 |
+| `context_digest` | `str` | 有限前后文摘要 |
+| `semantic_digest` | `str` | Claim 类型与规范数值摘要 |
+
+`claim_id` 由版本化指纹生成，例如 `clm_<digest>`。行号不进入主摘要。
+
+### 3.2 `PaperClaim`
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `claim_id` | `ClaimId` | 当前稳定身份 |
+| `fingerprint` | `ClaimFingerprint` | 用于迁移和碰撞判断 |
+| `kind` | `ClaimKind` | 正文、表格或派生值 |
+| `value` | `NumericValue` | 数值语义 |
+| `location` | `SourceLocation` | 当前源码位置 |
+| `context` | `ClaimContext` | 周围文本、section、caption、表头等 |
+| `classification` | `ClaimClassification` | 候选分类 |
+| `classification_confidence` | `Decimal [0,1]` | 确定性启发式分值 |
+| `classification_evidence` | `tuple[Evidence, ...]` | 为什么被分类 |
+
+置信度是规则证据强弱分值，不宣称统计校准概率。
+
+### 3.3 表格模型
+
+`PaperTable`：
+
+- `table_id`
+- `location`
+- `caption`
+- `label`
+- `headers`
+- `rows`
+- `limitations`
+
+`TableCell`：
+
+- `row_index` / `column_index`
+- `raw_text`
+- `location`
+- `numeric_value`
+- `is_bold`
+- `is_underlined`
+- `row_header`
+- `column_header`
+- `parse_reliable`
+
+复杂跨度导致行列语义不可靠时，`parse_reliable=false`，规则不得继续比较该范围。
+
+### 3.4 `PaperScan`
+
+- LaTeX 文件图。
+- 稳定排序的 Claim。
+- 表格。
+- 输入诊断和 limitation 诊断。
+- 指纹碰撞集合。
+
+## 4. 实验模型
+
+### 4.1 `MetricObservation`
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `observation_id` | `ObservationId` | 确定性身份 |
+| `run_id` | `RunId` | 所属实验 |
+| `metric_name` | `str` | 规范指标名 |
+| `value` | `Decimal` | 结果文件中的值 |
+| `unit` | `NumericUnit | None` | 若配置声明则保存 |
+| `source_file` | `ProjectPath` | JSON/YAML/CSV 文件 |
+| `source_selector` | `str` | 点路径或 CSV 行列选择器 |
+| `location` | `DataLocation` | 文件、行列或结构路径 |
+| `dataset` | `str | None` | 可选数据集 |
+| `split` | `str | None` | 可选划分 |
+| `seed` | `str | int | None` | 可选 seed |
+| `commit` | `str | None` | 来源声明的 commit |
+| `config_reference` | `ProjectPath | None` | 关联配置 |
+| `metadata` | `Mapping[str, ScalarValue]` | 受控元数据 |
+
+`ObservationId` 基于来源文件、selector、run 和 metric 生成，不使用随机 UUID。
+
+### 4.2 `ExperimentRun`
+
+- `run_id`
+- `observations`
+- `metadata`
+- `config_snapshot`
+- `result_sources`
+- `declared_commit`
+- `diagnostics`
+
+同一 run 中相同规范 metric 出现多个 Observation 时，除非配置定义了维度或聚合语义，否则产生重复诊断，不自动覆盖。
+
+### 4.3 `ExperimentConfigSnapshot`
+
+- `run_id`
+- `source_file`
+- `values: Mapping[DotPath, ConfigValue]`
+- 每个值的来源定位
+- 不可用或解析失败字段
+
+配置值支持有限 JSON/YAML 数据类型：null、bool、str、Decimal、list、mapping。比较语义见规则文档。
+
+### 4.4 `ExperimentCatalog`
+
+- 稳定排序的 Run。
+- Observation 索引。
+- 配置快照索引。
+- 输入诊断。
+
+## 5. 链接模型
+
+### 5.1 `MetricReference`
+
+- `source_file`
+- `run_id`
+- `metric_name`
+- `source_selector`
+- `scale: Decimal`
+
+`scale` 把 Observation 值转换到 Claim 的规范比较单位。它是十进制乘数，不是表达式。
+
+### 5.2 `DirectLink`
+
+- `claim_id`
+- `claim_fingerprint`
+- `metric_reference`
+- 可选 `tolerance_override`
+- `note`
+- `status`
+
+### 5.3 `DerivedOperand`
+
+- `name`
+- `metric_reference`
+
+### 5.4 `DerivedLink`
+
+- `claim_id`
+- `claim_fingerprint`
+- `operation`
+- `operands`
+- `output_unit`
+- `output_scale`
+- 可选 `stddev_mode`
+- 可选 `tolerance_override`
+- `note`
+- `status`
+
+操作数约束：
+
+- `subtraction`：恰好两个具名操作数 `candidate`、`baseline`。
+- `relative_change`：恰好两个操作数，baseline 不得为零。
+- `mean`：至少一个操作数。
+- `standard_deviation`：至少两个操作数，且必须声明 sample/population。
+
+### 5.5 `IgnoreRecord`
+
+- `claim_id`
+- `claim_fingerprint`
+- `reason`
+- 可选 `note`
+
+忽略必须显式持久化，不能通过删除历史链接伪装。
+
+### 5.6 `CandidateMatch`
+
+- Claim 引用。
+- MetricReference。
+- `score: Decimal [0,1]`。
+- 各匹配特征及贡献。
+- 支持证据。
+- 不确定性原因。
+
+候选匹配永远不是持久化 Link，直到用户确认。
+
+## 6. 比较模型
+
+### 6.1 `ComparisonSpec`
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `comparison_id` | `str` | 稳定用户定义身份 |
+| `baseline_run` | `RunId` | 基线实验 |
+| `candidate_run` | `RunId` | 候选实验 |
+| `controlled_keys` | `tuple[DotPath, ...]` | 必须一致的字段 |
+| `allowed_differences` | `Mapping[DotPath, str]` | 合法差异及理由 |
+| `numeric_tolerance` | `NumericTolerance | None` | 配置数值比较容差 |
+| `severity` | `Severity` | 规则严重程度 |
+
+列表默认按顺序比较；首版不隐式按集合比较。需要允许的列表差异应显式加入 `allowed_differences`。
+
+## 7. 证据和诊断
+
+### 7.1 `Evidence`
+
+- `evidence_id`
+- `kind`
+- `summary`
+- 可选 `location`
+- 可选结构化 `details`
+- 相关领域对象身份
+
+Evidence 必须描述已观察事实，不包含规则结论本身。
+
+### 7.2 `Diagnostic`
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `diagnostic_id` | `str` | 基于规则和证据生成的稳定身份 |
+| `kind` | `DiagnosticKind` | rule/input/limitation/internal |
+| `code` | `str` | 规则或输入错误代码 |
+| `severity` | `Severity` | 严重程度 |
+| `message` | `str` | 审慎、可复核的描述 |
+| `location` | `SourceLocation | DataLocation | None` | 主位置 |
+| `observed` | `StructuredValue | None` | 当前观察 |
+| `expected` | `StructuredValue | None` | 规则期望 |
+| `evidence` | `tuple[Evidence, ...]` | 证据 |
+| `confidence` | `Decimal [0,1]` | 证据强度 |
+| `remediation` | `str | None` | 人工处理建议 |
+| `related_sources` | `tuple[Location, ...]` | 相关位置 |
+
+### 7.3 `EvidenceGraph`
+
+节点：
+
+- Claim
+- Link
+- Observation
+- ResultSource
+- ExperimentConfig
+- GitEvidence
+
+边使用固定类型，例如 `linked_to`、`read_from`、`configured_by`、`declared_at_commit`。缺失节点保留 unavailable 状态。
+
+### 7.4 `CheckResult`
+
+- `schema_version`
+- `tool_version`
+- `project`
+- `summary`
+- 稳定排序的 `diagnostics`
+- `errors`
+- `evidence_graph`
+- 非敏感执行元数据
+
+所有报告格式都消费该模型。
+
+## 8. `config.yml` 首版结构
+
+以下是设计示例，不代表当前已有可运行实现：
+
+```yaml
+schema_version: "1"
+
+paper_paths:
+  - paper/main.tex
+
+result_paths:
+  - path: runs/**/*.json
+    format: json
+  - path: runs/seeds.csv
+    format: csv
+    csv:
+      run_id_column: run_id
+      metadata_columns: [dataset, split, seed]
+      metric_columns: [accuracy, f1]
+
+experiment_config_paths:
+  - configs/**/*.yml
+
+exclude_paths:
+  - build/**
+
+metric_aliases:
+  accuracy: [acc, top-1 accuracy]
+
+metric_directions:
+  accuracy: higher
+  latency_ms: lower
+
+numeric_tolerances:
+  default:
+    absolute: "0"
+    relative: "0.000001"
+  metrics:
+    accuracy:
+      absolute: "0.00005"
+      relative: "0"
+
+controlled_config_keys:
+  - dataset.name
+  - dataset.split
+  - training.seed
+
+ignored_claim_patterns:
+  - "\\b20[0-9]{2}\\b"
+
+comparisons:
+  - comparison_id: baseline-vs-proposed
+    baseline_run: baseline
+    candidate_run: proposed
+    controlled_keys:
+      - dataset.name
+      - dataset.split
+      - evaluation.script
+    allowed_differences:
+      model.name: "The compared method is expected to differ."
+    severity: warning
+
+policy:
+  missing_provenance_severity: warning
+  fail_on: error
+
+limits:
+  max_file_bytes: 5000000
+  max_include_depth: 32
+  max_files: 1000
+```
+
+未知顶级字段拒绝。实现阶段可以把重复结构拆成 Pydantic 子模型，但不得改变语义。
+
+## 9. `claims.yml` 首版结构
+
+```yaml
+schema_version: "1"
+
+claims:
+  - claim_id: clm_example
+    fingerprint:
+      version: "1"
+      digest: example
+      path: paper/main.tex
+      structural_anchor: "table:main-results|row:Proposed|column:accuracy"
+      context_digest: example-context
+      semantic_digest: example-semantic
+    source_display_value: "87.2\\%"
+    status: active
+    link:
+      type: direct
+      metric:
+        source_file: runs/proposed.json
+        run_id: proposed
+        metric_name: accuracy
+        source_selector: metrics.accuracy
+        scale: "1"
+    note: "Confirmed from the final evaluation run."
+
+  - claim_id: clm_year
+    fingerprint:
+      version: "1"
+      digest: year-example
+      path: paper/main.tex
+      structural_anchor: "section:introduction"
+      context_digest: year-context
+      semantic_digest: year-semantic
+    source_display_value: "2026"
+    status: ignored
+    ignore:
+      reason: non_experimental_number
+      note: "Publication year."
+```
+
+DerivedLink 在 `link.type: derived` 下保存枚举 operation 和结构化 operands，不接受代码字符串。
+
+## 10. 持久化与迁移
+
+- 所有文件必须先完整验证，再替换当前版本。
+- schema 主版本不兼容时退出，不自动猜测升级。
+- Claim 指纹算法升级时保留旧版本读取器或提供显式离线迁移命令；首版不预建通用迁移框架。
+- Claim 移动后，仅在新扫描中存在唯一高置信度上下文匹配时建议迁移。
+- 碰撞、多个近似匹配或来源消失时保持原记录并标记状态，不自动改写。
+
