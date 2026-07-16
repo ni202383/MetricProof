@@ -2,7 +2,7 @@
 
 ## 1. 产品定义
 
-MetricProof 是一个开源、本地优先的 Python 3.12 命令行工具。
+MetricProof 是一个开源、本地优先的 Python 3.13 命令行工具。
 
 > Unit tests for experimental claims.
 

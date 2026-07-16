@@ -15,7 +15,7 @@
 
 ## 工程结构
 
-- 使用 Python 3.12 和 `src` layout。
+- 使用 Python 3.13 和 `src` layout。
 - 核心包位于 `src/metricproof/`。
 - 依赖方向必须保持：
 
