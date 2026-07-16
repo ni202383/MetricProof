@@ -23,7 +23,26 @@ class DiagnosticKind(StrEnum):
     """Current diagnostic categories used by experiment loading."""
 
     INPUT = "input"
+    LIMITATION = "limitation"
     INTERNAL = "internal"
+
+
+class NumericUnit(StrEnum):
+    """Explicit unit semantics for an exact numeric value."""
+
+    SCALAR = "scalar"
+    RATIO = "ratio"
+    PERCENT_POINTS = "percent_points"
+
+
+class NumericKind(StrEnum):
+    """Lexical shape retained independently from later Claim semantics."""
+
+    INTEGER = "integer"
+    DECIMAL = "decimal"
+    SCIENTIFIC = "scientific"
+    PERCENT = "percent"
+    MEAN_STD = "mean_std"
 
 
 @dataclass(frozen=True, slots=True, order=True)
@@ -76,12 +95,35 @@ class NumericValue:
 
     raw_text: str
     parsed: Decimal
+    canonical: Decimal | None = None
+    unit: NumericUnit = NumericUnit.SCALAR
+    kind: NumericKind = NumericKind.DECIMAL
+    decimal_places: int | None = None
+    scale: Decimal = Decimal("1")
+    sign: str = ""
 
     def __post_init__(self) -> None:
         if not self.raw_text.strip():
             raise ValueError("numeric raw text must not be empty")
         if not self.parsed.is_finite():
             raise ValueError("numeric values must be finite")
+        if not self.scale.is_finite():
+            raise ValueError("numeric scale must be finite")
+        expected_canonical = self.parsed * self.scale
+        if self.canonical is None:
+            object.__setattr__(self, "canonical", expected_canonical)
+        elif not self.canonical.is_finite():
+            raise ValueError("canonical numeric values must be finite")
+        elif self.canonical != expected_canonical:
+            raise ValueError("canonical must equal parsed multiplied by scale")
+        if self.decimal_places is not None and self.decimal_places < 0:
+            raise ValueError("decimal_places must be non-negative")
+        if self.sign not in {"", "+", "-"}:
+            raise ValueError("sign must be empty, '+' or '-'")
+        if not self.sign:
+            stripped = self.raw_text.lstrip()
+            if stripped.startswith(("+", "-")):
+                object.__setattr__(self, "sign", stripped[0])
 
 
 @dataclass(frozen=True, slots=True)

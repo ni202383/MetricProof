@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 
-from metricproof.domain.models import NumericValue
+from metricproof.domain.models import NumericKind, NumericValue
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,4 +47,24 @@ def parse_numeric(value: object) -> NumericValue:
 
     if not parsed.is_finite():
         raise NumericParseError("NaN and Infinity are not valid metric numbers")
-    return NumericValue(raw_text=raw_text, parsed=parsed)
+    kind = (
+        NumericKind.SCIENTIFIC
+        if "e" in raw_text.casefold()
+        else NumericKind.DECIMAL
+        if "." in raw_text
+        else NumericKind.INTEGER
+    )
+    decimal_places = _decimal_places(raw_text)
+    return NumericValue(
+        raw_text=raw_text,
+        parsed=parsed,
+        kind=kind,
+        decimal_places=decimal_places,
+    )
+
+
+def _decimal_places(raw_text: str) -> int | None:
+    mantissa = raw_text.strip().lstrip("+-").split("e", maxsplit=1)[0].split("E", maxsplit=1)[0]
+    if "." not in mantissa:
+        return 0
+    return len(mantissa.partition(".")[2])

@@ -1,0 +1,8 @@
+{
+  "metrics": {
+    "accuracy": 0.872
+  },
+  "context": {
+    "dataset": "acceptance"
+  }
+}

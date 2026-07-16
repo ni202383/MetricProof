@@ -23,7 +23,7 @@
 | `char_start` | `int >= 0` | 文件内字符起点 |
 | `char_end` | `int > char_start` | 文件内字符终点 |
 
-`SourceLocation` 是当前定位，不作为持久化主身份。阶段 3 的 JSON/YAML selector 位置通常只填写 `path`；CSV 位置填写 `path`、`line`、`column`。结束范围和字符范围为后续 LaTeX 阶段预留，可为 `None`。
+`SourceLocation` 是当前定位，不作为持久化主身份。JSON/YAML selector 位置通常只填写 `path`；CSV 位置填写 `path`、`line`、`column`。阶段 4A 的 LaTeX 候选填写完整行列和字符范围。
 
 ### 2.2 `NumericValue`
 
@@ -33,9 +33,10 @@
 | `parsed` | `Decimal` | 解析后的字面值 |
 | `canonical` | `Decimal` | 进入比较语义后的规范值 |
 | `unit` | `NumericUnit` | `scalar`、`ratio`、`percent_points` 等 |
-| `kind` | `NumericKind` | integer、decimal、percent、scientific、mean_std、range |
+| `kind` | `NumericKind` | `integer`、`decimal`、`scientific`、`percent`、`mean_std` |
 | `decimal_places` | `int | None` | 显示小数位数 |
 | `scale` | `Decimal` | `canonical = parsed × scale` |
+| `sign` | `str` | 原文显式符号：`"+"`、`"-"` 或空字符串 |
 
 例：
 
@@ -76,7 +77,25 @@ max(absolute, relative × max(abs(expected), abs(observed)))
 
 ## 3. 论文模型
 
-### 3.1 `ClaimFingerprint`
+### 3.1 阶段 4A 原始扫描模型
+
+`RawNumericCandidate` 是源码词法与基础语法事实，不是 `PaperClaim`。它包含：
+
+- `kind`：单值或基础 `mean ± std`；
+- `raw_text`、`value` 与可选 `uncertainty`；
+- 完整 `SourceLocation`；
+- `LatexSyntacticContext`：正文、数学、命令参数、表格环境、caption 或 unknown；
+- 当前环境栈、最近命令、有限前后文；
+- 可达的配置入口集合与每个入口的规范 include 链。
+
+`LatexSourceGraph` 包含排序后的入口、文档和 include 边。每个
+`LatexSourceDocument` 保存项目相对路径与字节数；`LatexIncludeEdge` 保存来源、
+目标、include 命令和源码位置。
+
+`PaperScanResult` 包含文件图、稳定排序的原始候选、输入/limitation 诊断、
+资源统计与 `complete` 标记。阶段 4A 不产生 Claim、Claim ID、表格行列模型或链接。
+
+### 3.2 `ClaimFingerprint`（后续阶段）
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
@@ -89,7 +108,7 @@ max(absolute, relative × max(abs(expected), abs(observed)))
 
 `claim_id` 由版本化指纹生成，例如 `clm_<digest>`。行号不进入主摘要。
 
-### 3.2 `PaperClaim`
+### 3.3 `PaperClaim`（后续阶段）
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
@@ -105,7 +124,7 @@ max(absolute, relative × max(abs(expected), abs(observed)))
 
 置信度是规则证据强弱分值，不宣称统计校准概率。
 
-### 3.3 表格模型
+### 3.4 表格模型（后续阶段）
 
 `PaperTable`：
 
@@ -131,7 +150,7 @@ max(absolute, relative × max(abs(expected), abs(observed)))
 
 复杂跨度导致行列语义不可靠时，`parse_reliable=false`，规则不得继续比较该范围。
 
-### 3.4 `PaperScan`
+### 3.5 完整 `PaperScan`（后续阶段）
 
 - LaTeX 文件图。
 - 稳定排序的 Claim。
@@ -498,4 +517,3 @@ DerivedLink 在 `link.type: derived` 下保存枚举 operation 和结构化 oper
 - Claim 指纹算法升级时保留旧版本读取器或提供显式离线迁移命令；首版不预建通用迁移框架。
 - Claim 移动后，仅在新扫描中存在唯一高置信度上下文匹配时建议迁移。
 - 碰撞、多个近似匹配或来源消失时保持原记录并标记状态，不自动改写。
-

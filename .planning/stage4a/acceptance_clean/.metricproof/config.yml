@@ -1,0 +1,12 @@
+schema_version: "1"
+paper_paths:
+  - paper/main.tex
+result_paths:
+  - path: runs/result.json
+    format: json
+    run_id: acceptance
+    structured:
+      metrics:
+        accuracy: metrics.accuracy
+      metadata:
+        dataset: context.dataset

@@ -83,6 +83,7 @@ metricproof/
 
 - 源位置与项目相对路径。
 - 数值、单位、显示精度与容差。
+- 阶段 4A 的 LaTeX 文件图、原始数值候选和基础语法上下文。
 - 论文 Claim 和表格结构。
 - 实验 Run、MetricObservation 和配置快照。
 - DirectLink、DerivedLink、IgnoreRecord 和 ComparisonSpec。
@@ -99,12 +100,14 @@ metricproof/
 
 ### 5.2 `ScanPaper`
 
-协调配置、LaTeX 端口和 Claim 分类器，输出：
+阶段 4A 已实现部分协调配置与 `PaperScanner` 端口，输出：
 
-- `PaperScan`
-- 候选 Claim
-- 表格
+- `PaperScanResult`
+- LaTeX 文件图
+- 原始数值候选
 - 输入与 limitation 诊断
+
+它不执行 Claim 分类、Claim ID 或表格语义。后续阶段只能基于该结果继续建模。
 
 ### 5.3 `LoadExperiments`
 
@@ -139,7 +142,7 @@ metricproof/
 | `ProjectFileSystem` | 安全解析项目相对路径、受控读取、原子写入、文件发现 |
 | `ConfigurationRepository` | 读取并验证 `config.yml` |
 | `ClaimRegistryRepository` | 读取、验证和原子保存 `claims.yml` |
-| `PaperScanner` | 从 LaTeX 入口生成 Claim、表格和解析诊断 |
+| `PaperScanner` | 从 LaTeX 入口生成文件图、原始数值候选和解析诊断 |
 | `ExperimentSourceReader` | 把 JSON/YAML/CSV 归一化为 Run 和 Observation |
 | `ExperimentConfigReader` | 读取受控配置字段及来源位置 |
 | `GitEvidenceProvider` | 只读获取仓库、commit、branch 和工作树证据 |
@@ -159,12 +162,12 @@ metricproof/
 
 ### 7.2 LaTeX
 
-采用“文件图 → 词法/结构解析 → Claim 分类 → 表格建模”流水线，避免一个巨大正则模拟 TeX。
+采用“文件图 → 词法/基础结构解析 → Claim 分类 → 表格建模”流水线，避免一个巨大正则模拟 TeX。阶段 4A 只实现前两步：
 
-- 文件图负责 include、循环、缺失文件和路径边界。
-- 词法层保留原始范围和数值语义。
-- 分类层排除明显非实验数字或降低置信度。
-- 表格层只在结构可靠时生成可比较列。
+- `LocalLatexPaperScanner` 负责静态 include、循环、缺失文件、路径边界和集中资源限制。
+- 小型确定性状态机屏蔽注释与代码环境，保留原始范围、数值语义、环境栈和基础上下文。
+- `scan_paper` 只依赖端口与领域对象；`--file` 只能过滤已构建图中的文件。
+- Claim 分类与表格语义尚未实现。
 
 ### 7.3 实验结果
 
@@ -294,4 +297,3 @@ CheckResult
 - 所有项目路径以 `pathlib.Path` 进入边界，以项目相对路径进入领域。
 - CLI 最终命令集合固定为 `init`、`scan`、`link`、`check`、`report`，可增加辅助子命令但不得替换核心流程。
 - `CheckResult` 是所有报告格式的唯一事实来源。
-

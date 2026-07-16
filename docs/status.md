@@ -4,67 +4,76 @@
 
 ## 当前阶段
 
-阶段 3：严格项目配置、实验领域模型，以及 JSON、YAML、CSV 实验结果读取。
+阶段 4A：受控 LaTeX 文件图、源码屏蔽、原始数值候选和 `metricproof scan`。
 
-状态：阶段 3 已完成实现、自动测试、命令级验收和完成标准审计。当前正式运行基线为 Python `>=3.13,<4.0`；目标附件中残留的 Python 3.12 描述已由后续用户决策和仓库正式文档更新为 3.13。
+状态：实现、自动测试、命令级验收和完成标准审计均已完成。正式运行基线为 Python `>=3.13,<4.0`。
 
-## 本阶段已实现
+## 阶段 4A 已实现
 
-- 严格、安全读取项目根目录 `.metricproof/config.yml`，要求 `schema_version: "1"`。
-- Pydantic 配置模型默认拒绝顶级和嵌套未知字段，YAML 使用安全 loader 并检测重复 key。
-- `result_paths` 支持项目相对精确路径和 glob，稳定展开 JSON/YAML/CSV 来源。
-- 所有配置路径检查绝对路径、`..`、不存在文件、重复路径别名和符号链接逃逸。
-- JSON/YAML 通过 `structured.metrics` 与 `structured.metadata` 显式声明 selector。
-- JSON/YAML 单 run 支持固定 `run_id` 或 `run_id_selector`；多 run 数组必须显式配置 `records_selector` 和 `run_id_selector`。
-- CSV 必须声明 `run_id_column`、`metric_columns`、`metadata_columns`，使用标准库 `csv`。
-- 建立 `SourceLocation`、`NumericValue`、`MetricObservation`、`ExperimentRun`、`Evidence`、`InputDiagnostic` 和 `ExperimentCatalog`。
-- 指标使用有限 `Decimal`；JSON/YAML 保留数字词法文本，CSV 直接从字符串解析，不经过二进制 `float`。
-- 布尔、空字符串、`NaN` 和 Infinity 均不会成为合法 Observation。
-- JSON/YAML 检测重复 key、语法错误、selector 错误、非显式数组、递归结构和最大深度。
-- CSV 检测缺失/重复表头、缺列、行宽、缺失/重复 run ID、空/非法数值和最大行数。
-- 多来源按稳定顺序读取；同一 run 可合并不同指标，重复 metric、元数据和配置引用冲突形成阻断诊断。
-- 实现 `ConfigurationRepository`、`ExperimentSourceReader`、`SourceReadResult` 和 `load_experiments` 应用边界。
-- 增加 `metricproof experiments list` / `validate` 及 `--json`，机器输出稳定纯净。
-- CLI 保持展示与应用/领域逻辑分离，输入错误不显示 traceback，也不修改输入文件。
+- `paper_paths` 保存严格、排序后的精确 `.tex` 入口；不接受 glob，也允许只配置论文扫描的项目。
+- 静态解析相对 `\input{}` / `\include{}`，支持省略 `.tex`，检测缺失文件、循环、动态参数和路径逃逸。
+- 每个物理文件只扫描一次；候选保留所有可达入口和规范 include 链。
+- 注释、`\verb`、`verbatim`、`Verbatim`、`lstlisting` 与 `minted` 内容不产生候选。
+- 识别整数、小数、前导点小数、正负号、科学计数法、普通/转义百分数和基础 `mean ± std`。
+- 数值直接解析为有限 `Decimal`，保存原文、规范值、单位、类型、显示精度和符号。
+- 候选保存项目相对文件、行列、字符范围、有限前后文、环境栈、最近命令、语法上下文和入口 provenance。
+- 语法上下文区分正文、数学、命令参数、表格环境、caption 和 unknown；不解释表格行列或实验语义。
+- 新增 `PaperScanner` 端口、`scan_paper` 应用服务与 `LocalLatexPaperScanner` 适配器。
+- 新增 `metricproof scan`、`--json`、`--show-all` 和 `--file`。
+- `--file` 只能过滤已构建依赖图中的真实文件，不能读取图外任意路径。
+- 缺失 include 等可恢复问题保留其他结果并形成结构化诊断；阻断输入退出码为 `3`。
+- 扫描只读，不执行 TeX、宏、代码环境、用户脚本或表达式，不修改论文文件。
+
+阶段 3 的严格配置和 JSON/YAML/CSV 实验结果读取能力保持兼容。
 
 ## 集中资源限制
 
 - 单文件最大 5,000,000 bytes。
+- LaTeX 图最大总字节数 25,000,000。
+- 最大 LaTeX 文件数 1,000。
+- 最大 include 深度 32。
+- 最大 LaTeX 环境深度 128。
+- 最大原始数值候选数 100,000。
 - JSON/YAML 最大嵌套深度 64。
 - 最大实验结果来源数 1,000。
 - 单 CSV 最大数据行数 100,000。
 
-这些是阶段 3 有文档的内置常量；配置中的未来 `limits` 字段当前不改变这些读取边界。
+这些是集中定义的内置常量；配置中的未来 `limits` 字段当前不改变读取边界。
 
 ## 当前测试证据
 
-在 Python 3.13.9 下，阶段 3 扩展后：
+在 Python 3.13.9 下，阶段 4A 自动验证结果：
 
 - `python --version`：Python 3.13.9。
-- `python -m pytest`：121 passed，1 skipped。
-- `python -m pytest --cov=metricproof --cov-report=term-missing`：121 passed，1 skipped，92.84% branch coverage。
-- 跳过项仅为当前 Windows 账户无创建符号链接权限；另以真实 Windows 目录联接验证了链接逃逸被拒绝，CLI 返回配置错误退出码 2。
+- `python -m pytest`：186 passed，2 skipped。
+- `python -m pytest --cov=metricproof --cov-report=term-missing`：186 passed，2 skipped，90.82% coverage。
+- 两个跳过项仅为当前 Windows 账户无法创建测试符号链接；路径逃逸拒绝逻辑仍有其他边界测试覆盖。
 - `python -m ruff check .`：通过。
-- `python -m ruff format --check .`：31 files already formatted。
+- `python -m ruff format --check .`：39 files already formatted。
 - `pyright` strict：0 errors、0 warnings、0 informations。
 - `python -m compileall -q src`：通过。
-- `python -m build`：成功生成 sdist 与 wheel；首次受限沙箱临时目录失败后，同一命令在正常临时目录权限下通过。
-- `metricproof --help`：通过，显示 `doctor` 与 `experiments`。
-- `metricproof --version`：`MetricProof 0.1.0.dev0`。
-- `metricproof doctor`：3 PASS、2 WARN，退出码 0。
-- `metricproof experiments --help` 与 `python -m metricproof experiments --help`：通过。
-- 临时 JSON/YAML/CSV 项目执行 `metricproof experiments list`：稳定列出 4 个 run。
-- 同一项目执行 `metricproof experiments validate`：4 run、4 observation、0 diagnostic，退出码 0。
-- 同一项目执行 `metricproof experiments list --json`：输出可解析、稳定且无附加日志的 JSON。
+- `python -m build`：成功生成 sdist 与 wheel。
+- `metricproof --help`：退出码 0，显示 `doctor`、`scan` 与 `experiments`。
+- `metricproof doctor`：4 PASS、1 WARN，退出码 0；WARN 为仓库根目录没有 `.metricproof`。
+- `metricproof experiments validate`：验收项目 1 run、1 observation、0 diagnostic，退出码 0。
+- `metricproof scan --help` 与 `python -m metricproof scan --help`：退出码 0。
+- 干净验收项目 `metricproof scan`：3 个 LaTeX 文件、6 个原始候选、0 诊断、退出码 0。
+- 同一项目 `metricproof scan --json`：稳定纯 JSON，3 个文件、6 个候选、退出码 0。
+- `metricproof scan --show-all --file paper/sections/results.tex`：5 个文件内候选、退出码 0。
+- 诊断验收项目 `metricproof scan --json`：保留 3 个文件中的 4 个候选，报告缺失 include 与循环 2 个诊断，退出码 3。
+- Windows 真实目录联接逃逸验收：只保留入口文件中的 1 个候选，报告 `MPE_LATEX_PATH_ESCAPE`，退出码 3；验收后仅移除本次创建的联接，外部目标文件保持存在。
 - `git diff --check`：通过。
-- 安全扫描未发现代码中的 `eval`、`exec`、`shell=True`、pandas、联网或远程资源操作。
+- 生成式测试覆盖 1,000 个数值词法和 200 组注释转义奇偶。
+- 合成性能测试覆盖约 5,000 个候选并约束线性扩展趋势。
+- 安全扫描未发现 `eval`、`exec`、`shell=True`、TeX 执行、联网或远程资源操作。
 
-验证中的沙箱临时目录权限失败均已使用相同命令在正常临时目录权限下复验；它们不是产品断言失败。除账户权限导致的符号链接测试跳过外，没有未通过的项目级检查。
+验收项目包含两个静态 include 文件、注释数字、`87.2\%`、科学计数法、
+`mean \pm std`、表格候选、verbatim 排除、缺失 include 与 include 循环。
 
 ## 当前尚未实现
 
-- LaTeX 文件内容解析、Claim 和表格提取。
-- `metricproof scan`、Claim ID、Claim-to-Metric 链接和 `claims.yml`。
+- `PaperClaim`、Claim 分类、Claim ID、迁移、Claim-to-Metric 链接和 `claims.yml`。
+- 表格行列、表头、粗体最优值和下划线次优值等语义。
 - `STALE_VALUE`、`WRONG_DELTA`、`MISSING_PROVENANCE`、`WRONG_BEST_MARK`、`UNFAIR_COMPARISON`。
 - 完整 `check`、正式检查结果 JSON 和 HTML 报告。
 - Git 实验证据读取、GitHub Actions、远程资源、数据库、Web 或插件系统。
@@ -80,7 +89,7 @@
 - `DoctorCheck`、`DoctorReport`、`GitInspection`、`LatexDiscovery`
 - `LocalDoctorProbe`
 
-阶段 3 新增稳定边界：
+阶段 3 稳定边界：
 
 - `SourceLocation`、`NumericValue`、`MetricObservation`、`ExperimentRun`、`Evidence`、`InputDiagnostic`、`ExperimentCatalog`
 - `ExperimentFormat`、`StructuredSourceOptions`、`CsvSourceOptions`、`ExperimentSource`、`ProjectConfiguration`
@@ -89,4 +98,13 @@
 - `YamlConfigurationRepository`、`LocalExperimentSourceReader`
 - `metricproof experiments list`、`metricproof experiments validate`
 
-下一阶段必须消费这些领域对象和应用端口，不得让 LaTeX、Claim 或规则逻辑直接读取任意实验文件或进入 CLI。
+阶段 4A 新增稳定边界：
+
+- `NumericKind`、`NumericUnit`
+- `LatexSyntacticContext`、`NumericCandidateKind`、`RawNumericCandidate`
+- `LatexSourceDocument`、`LatexIncludeEdge`、`LatexSourceGraph`
+- `PaperScanStatistics`、`PaperScanResult`
+- `PaperScanner`、`scan_paper`、`LocalLatexPaperScanner`
+- `metricproof scan`
+
+下一阶段必须消费这些原始候选和应用端口，不得让 Claim、表格语义或规则逻辑直接读取任意文件或进入 CLI。

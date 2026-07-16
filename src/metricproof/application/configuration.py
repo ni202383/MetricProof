@@ -41,3 +41,4 @@ class ProjectConfiguration:
     sources: tuple[ExperimentSource, ...]
     experiment_config_paths: tuple[str, ...] = ()
     exclude_paths: tuple[str, ...] = ()
+    paper_paths: tuple[str, ...] = ()

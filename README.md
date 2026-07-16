@@ -2,7 +2,11 @@
 
 MetricProof is an open-source, local-first Python CLI for checking research artifacts with deterministic, explainable rules.
 
-Stage 3 is implemented: MetricProof can strictly load `.metricproof/config.yml`, read declared JSON, YAML, and CSV experiment results, normalize them into exact `Decimal`-based domain objects, and expose `experiments list` / `experiments validate`. LaTeX scanning, Claim linking, the five paper consistency rules, and formal HTML reports are not implemented yet.
+Stage 4A is implemented: MetricProof can strictly load `.metricproof/config.yml`,
+read declared JSON, YAML, and CSV experiment results, and scan a controlled LaTeX
+source graph for exact `Decimal`-based raw numeric candidates. Claim semantics,
+table interpretation, linking, the five paper consistency rules, and formal HTML
+reports are not implemented yet.
 
 ## Requirements
 
@@ -116,12 +120,35 @@ Optional `config_reference` on a result source preserves one project-relative ex
 
 All paths and globs are project-relative. Absolute paths, `..` traversal, missing files, duplicate path aliases, and symlink escapes are rejected.
 
+## Minimal LaTeX scan configuration
+
+Declare one or more exact `.tex` entry paths. Unlike result sources, `paper_paths`
+does not accept globs:
+
+```yaml
+schema_version: "1"
+paper_paths:
+  - paper/main.tex
+exclude_paths:
+  - build/**
+```
+
+`metricproof scan` follows static relative `\input{}` and `\include{}`
+dependencies, including omitted `.tex` suffixes. Each physical file is scanned
+once while candidate provenance retains every configured entry that reaches it.
+Comments, `\verb`, `verbatim`, `Verbatim`, `lstlisting`, and `minted` content are
+excluded.
+
 ## CLI
 
 ```text
 metricproof --help
 metricproof --version
 metricproof doctor
+metricproof scan
+metricproof scan --json
+metricproof scan --show-all
+metricproof scan --file paper/section.tex
 metricproof experiments --help
 metricproof experiments list
 metricproof experiments list --json
@@ -132,8 +159,14 @@ python -m metricproof experiments --help
 
 - `experiments list` displays normalized runs, metrics, source files, and selectors.
 - `experiments validate` validates config and every source without modifying them.
+- `scan` displays raw numeric candidates and source positions from the configured
+  LaTeX graph. It does not classify them as paper claims.
+- `scan --show-all` also displays low-context command-argument and unknown candidates.
+- `scan --file` filters to a file already present in the configured dependency graph;
+  it cannot read an arbitrary path.
 - `--json` writes one stable JSON document to stdout without Rich formatting.
-- Invalid project configuration exits with code `2`; blocking result-input errors exit with code `3`.
+- Invalid project configuration or file selection exits with code `2`; blocking
+  input diagnostics exit with code `3`.
 
 ## Safety and supported boundaries
 
@@ -144,6 +177,10 @@ python -m metricproof experiments --help
 - Booleans, empty strings, `NaN`, and infinities are not valid metric values.
 - Built-in limits are 5,000,000 bytes per file, nesting depth 64, 1,000 result sources, and 100,000 CSV rows.
 - MetricProof does not execute result files, TeX, Python modules, training scripts, or expressions.
+- LaTeX limits are 5,000,000 bytes per file, 25,000,000 total bytes, 1,000 files,
+  include depth 32, environment depth 128, and 100,000 numeric candidates.
+- Dynamic macro expansion, external code inclusion, full TeX interpretation, and
+  table row/column semantics are intentionally unsupported.
 
 ## Quality checks
 
@@ -160,8 +197,8 @@ For an intentionally offline environment with local build dependencies available
 
 ## Not implemented yet
 
-- LaTeX paper scanning or parsing and `metricproof scan`
-- Claim discovery, IDs, linking, migration, or `claims.yml`
+- Paper Claim discovery, IDs, linking, migration, or `claims.yml`
+- Table row/column/header semantics and best-value interpretation
 - `STALE_VALUE`, `WRONG_DELTA`, `MISSING_PROVENANCE`, `WRONG_BEST_MARK`, or `UNFAIR_COMPARISON`
 - Formal `check`, versioned check-result JSON, or HTML reports
 - GitHub Actions, remote services, databases, plugins, or AI integrations

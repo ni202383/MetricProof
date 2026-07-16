@@ -121,7 +121,7 @@ class _RawLimits(_StrictModel):
 
 class _RawConfig(_StrictModel):
     schema_version: str
-    result_paths: list[_RawSource]
+    result_paths: list[_RawSource] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
     experiment_config_paths: list[str] = Field(default_factory=list)
     exclude_paths: list[str] = Field(default_factory=list)
     paper_paths: list[str] = Field(default_factory=list)
@@ -201,14 +201,40 @@ class YamlConfigurationRepository:
         excludes = tuple(
             sorted(_validate_patterns(raw.exclude_paths, display_path, "exclude_paths"))
         )
+        paper_paths: list[str] = []
+        resolved_papers: set[Path] = set()
         for index, pattern in enumerate(raw.paper_paths):
-            _expand_files(
+            if has_magic(pattern):
+                raise _config_error(
+                    display_path,
+                    f"paper_paths.{index}",
+                    "paper_paths entries must be exact files, not glob patterns",
+                    "declare each LaTeX entry file explicitly",
+                )
+            if Path(pattern.replace("\\", "/")).suffix.casefold() != ".tex":
+                raise _config_error(
+                    display_path,
+                    f"paper_paths.{index}",
+                    "paper entry files must use the .tex extension",
+                    "declare a project-relative .tex entry file",
+                )
+            matches = _expand_files(
                 root,
                 pattern,
                 excludes,
                 display_path,
                 f"paper_paths.{index}",
             )
+            paper = matches[0]
+            if paper in resolved_papers:
+                raise _config_error(
+                    display_path,
+                    f"paper_paths.{index}",
+                    f"paper entry resolves to an already declared file: {_relative(root, paper)}",
+                    "remove the duplicate path alias",
+                )
+            resolved_papers.add(paper)
+            paper_paths.append(_relative(root, paper))
 
         sources: list[ExperimentSource] = []
         resolved_sources: set[Path] = set()
@@ -254,6 +280,7 @@ class YamlConfigurationRepository:
             sources=tuple(sorted(sources, key=lambda source: (source.path, source.format.value))),
             experiment_config_paths=tuple(sorted(experiment_configs)),
             exclude_paths=excludes,
+            paper_paths=tuple(sorted(paper_paths)),
         )
 
 

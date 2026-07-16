@@ -1,0 +1,3 @@
+schema_version: "1"
+paper_paths:
+  - paper/main.tex
