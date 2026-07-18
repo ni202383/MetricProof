@@ -9,7 +9,7 @@ from hashlib import sha256
 
 from metricproof.domain.models import Evidence, ScalarValue, Severity, SourceLocation
 
-CHECK_RESULT_SCHEMA_VERSION = "1"
+CHECK_RESULT_SCHEMA_VERSION = "2"
 
 
 class CheckDiagnosticKind(StrEnum):
@@ -34,6 +34,7 @@ class CheckDiagnostic:
     confidence: Decimal
     remediation: str
     claim_id: str | None = None
+    subject_id: str | None = None
     observed: ScalarValue = None
     expected: ScalarValue = None
     related_sources: tuple[SourceLocation, ...] = ()
@@ -53,16 +54,49 @@ class CheckDiagnostic:
 
 
 @dataclass(frozen=True, slots=True)
+class RuleExecutionSummary:
+    code: str
+    status: str
+    info_count: int
+    warning_count: int
+    error_count: int
+    limitation_count: int
+    reason: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.code.strip() or self.status not in {"executed", "skipped"}:
+            raise ValueError("rule summaries require a code and controlled status")
+        if (
+            min(
+                self.info_count,
+                self.warning_count,
+                self.error_count,
+                self.limitation_count,
+            )
+            < 0
+        ):
+            raise ValueError("rule summary counts must be non-negative")
+        if self.status == "skipped" and not self.reason.strip():
+            raise ValueError("skipped rule summaries require a reason")
+
+    @property
+    def finding_count(self) -> int:
+        return self.info_count + self.warning_count + self.error_count
+
+
+@dataclass(frozen=True, slots=True)
 class CheckSummary:
     checked_claim_count: int
     registry_counts: tuple[tuple[str, int], ...]
     migration_counts: tuple[tuple[str, int], ...]
     diagnostic_counts: tuple[tuple[str, int], ...]
     severity_counts: tuple[tuple[str, int], ...]
+    scanned_file_count: int = 0
+    rule_summaries: tuple[RuleExecutionSummary, ...] = ()
 
     def __post_init__(self) -> None:
-        if self.checked_claim_count < 0:
-            raise ValueError("checked Claim count must be non-negative")
+        if self.checked_claim_count < 0 or self.scanned_file_count < 0:
+            raise ValueError("CheckResult summary counts must be non-negative")
         for values in (
             self.registry_counts,
             self.migration_counts,
@@ -75,6 +109,8 @@ class CheckSummary:
                 raise ValueError("CheckResult summary mappings require unique keys")
             if any(count < 0 for _, count in values):
                 raise ValueError("CheckResult summary counts must be non-negative")
+        if tuple(sorted(self.rule_summaries, key=lambda item: item.code)) != self.rule_summaries:
+            raise ValueError("rule summaries must use stable rule-code ordering")
 
 
 @dataclass(frozen=True, slots=True)
@@ -122,6 +158,7 @@ def make_check_diagnostic(
     confidence: Decimal,
     remediation: str,
     claim_id: str | None = None,
+    subject_id: str | None = None,
     observed: ScalarValue = None,
     expected: ScalarValue = None,
     related_sources: tuple[SourceLocation, ...] = (),
@@ -134,6 +171,7 @@ def make_check_diagnostic(
             kind.value,
             code,
             claim_id or "",
+            subject_id or "",
             location.display,
             repr(observed),
             repr(expected),
@@ -151,6 +189,7 @@ def make_check_diagnostic(
         confidence=confidence,
         remediation=remediation,
         claim_id=claim_id,
+        subject_id=subject_id,
         observed=observed,
         expected=expected,
         related_sources=tuple(sorted(set(related_sources))),

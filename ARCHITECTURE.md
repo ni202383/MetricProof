@@ -6,7 +6,7 @@
 
 - 规则可确定性测试，不依赖 CLI、Rich、Jinja2 或真实文件系统。
 - LaTeX、实验文件、Git 和持久化操作均可替换为测试适配器。
-- 同一 `CheckResult` 已供终端和 JSON 复用；未来 HTML 必须复用同一模型。
+- 同一 schema version `2` 的 `CheckResult` 供终端、JSON 和离线 HTML 复用。
 - 首版模块数量足以表达职责，但不建立插件系统、数据库或服务端。
 - 不可靠或不完整的输入通过显式诊断传播，不静默吞掉。
 - Python 3.13 是当前运行、测试、静态检查和构建基线。
@@ -85,11 +85,11 @@ metricproof/
 - 数值、单位、显示精度与容差。
 - 阶段 4A 的 LaTeX 文件图、原始数值候选和基础语法上下文。
 - 阶段 4B1 的基础表格、行、单元格、格式范围和可靠性事实。
-- 后续阶段的论文 Claim 与表头/指标/最佳值语义。
+- 稳定论文 Claim，以及由显式 table_checks/metric_directions 提供的表格语义。
 - 实验 Run、MetricObservation 和配置快照。
 - DirectLink、DerivedLink、IgnoreRecord 和 ComparisonSpec。
 - Evidence、Diagnostic、Severity 和规则代码。
-- 当前三条 MVP 规则的纯计算；后续两条规则不在本阶段。
+- 五条 MVP 规则的纯计算；规则只消费已准备领域对象。
 
 领域对象的字段设计见 [docs/data-model.md](docs/data-model.md)。
 
@@ -143,15 +143,14 @@ metricproof/
 
 ### 5.7 `CheckProject`
 
-阶段 5D 已实现。它消费一次 `PaperScanResult`、一次 `ExperimentCatalog`、已验证配置和
-`ClaimRegistry`，构建一个 `LinkSession`，处理迁移/失效链接，再按选择运行三条纯规则。
-输出是稳定排序、schema version `1` 的唯一 `CheckResult`。规则不访问文件，应用服务
+阶段 6 已实现。它消费一次 `PaperScanResult`、一次 `ExperimentCatalog`、最小实验配置快照、已验证配置和
+`ClaimRegistry`，构建一个 `LinkSession`，处理迁移/失效链接，再按选择运行五条纯规则。
+输出是稳定排序、schema version `2` 的唯一 `CheckResult`。规则不访问文件，应用服务
 不实例化适配器。
 
 ### 5.8 输出渲染
 
-当前终端与 JSON renderer 都只消费 `CheckResult`，不重新执行或复制规则。HTML
-`BuildReport` 仍是后续设计，当前未实现。
+终端、JSON 与单文件离线 HTML renderer 都只消费 `CheckResult`，不重新执行或复制规则。HTML adapter 负责转义和原子输出，不增加规则判断。
 
 ## 6. 应用端口
 
@@ -166,7 +165,7 @@ metricproof/
 | `ExperimentSourceReader` | 把 JSON/YAML/CSV 归一化为 Run 和 Observation |
 | `ExperimentConfigReader` | 读取受控配置字段及来源位置 |
 | `GitEvidenceProvider` | 只读获取仓库、commit、branch 和工作树证据 |
-| `ReportRenderer` | 后续 HTML 等报告端口；当前终端/JSON 为 CLI 纯渲染函数 |
+| `ReportWriter` | 把既有 CheckResult 安全、原子地写成项目内 JSON/单文件 HTML |
 
 适配器不得通过“万能上下文对象”绕过端口职责。
 
@@ -195,7 +194,7 @@ metricproof/
 - adapter 将解析事实转换为不可变领域对象；domain 不保存第三方 parser、文件系统或 Rich 对象。
 - `scan_paper` 只依赖端口与领域对象；`--file` 同时过滤已构建图中的候选和表格。
 - `parsed` 可供后续结构消费；`degraded` 保留恢复结果但不得当作完全可靠；`unsupported` 只确认环境边界，不伪造行列。
-- Claim 分类使用纯领域启发式和一次表格索引；阶段 5 身份服务在其上建立版本化 Claim ID 与可解释迁移。表头/指标正式映射和 best/second-best 判断仍未实现。
+- Claim 分类使用纯领域启发式和一次表格索引；阶段 5 身份服务在其上建立版本化 Claim ID 与可解释迁移。阶段 6 best/second-best 判断只接收 parsed 表格事实与显式列/方向配置，不读取文件也不猜测表头。
 
 ### 7.3 实验结果
 
@@ -217,9 +216,15 @@ metricproof/
 ### 7.5 输出
 
 - Console renderer 可使用 Rich，但只展示 `CheckResult`。
-- JSON renderer 输出 schema version `1`，字段与排序由同一 `CheckResult` 决定。
-- HTML adapter 尚未实现。
+- JSON renderer 输出 schema version `2`，字段与排序由同一 `CheckResult` 决定。
+- HTML adapter 输出转义后的单文件离线文档：内联 CSS、无脚本、无外部资源、项目边界检查和原子替换。
 
+
+### 7.6 受控配置快照与报告
+
+`LocalExperimentConfigReader` 只读取 comparison 声明需要的 dot-path key，使用安全单文档 YAML/严格 JSON、确定性 Decimal、深度/大小限制和项目边界检查，返回不可变 `ExperimentConfigSnapshot`；应用服务通过 `ExperimentConfigReader` 端口加载，规则只比较领域值。
+
+`LocalReportWriter` 只接收 `CheckResult` 与项目相对输出路径。HTML/JSON 共用序列化事实；写入采用同目录临时文件、flush/fsync 与 `os.replace`。`--no-timestamp` 不引入当前时间，保证未变输入的字节稳定性。
 ## 8. 数据流
 
 ### 8.1 Scan
@@ -254,7 +259,7 @@ Config + one PaperScan + one ExperimentCatalog + ClaimRegistry
   → LinkSession + deterministic identity migration
   → selected STALE_VALUE / WRONG_DELTA / MISSING_PROVENANCE rules
   → CheckSummary + stable CheckDiagnostics
-  → CheckResult schema 1
+  → CheckResult schema 2
 ```
 
 ### 8.4 Output
@@ -263,7 +268,7 @@ Config + one PaperScan + one ExperimentCatalog + ClaimRegistry
 CheckResult
   ├── ConsoleRenderer (implemented)
   ├── JsonRenderer (implemented)
-  └── HtmlRenderer (future; not implemented)
+  └── HtmlRenderer (single-file offline, escaped, no script)
 ```
 
 ## 9. 确定性与稳定排序
@@ -286,7 +291,7 @@ CheckResult
 - include、glob、报告输出和临时文件同样执行路径边界检查。
 - 不执行 TeX、训练代码、任意表达式或 YAML 对象构造。
 - DerivedLink 只允许枚举操作，不允许 `eval` / `exec`。
-- 未来 HTML 实现必须转义所有用户文本；当前没有 HTML 输出。
+- HTML adapter 转义所有用户文本，不生成脚本或远程资源。
 - 文件大小、include 深度、文件数量、表格数、行/单元格数、单元格长度、表格嵌套和 multicolumn span 具有集中内置上限。
 - Git 子进程禁止 shell，限制命令集合并设置超时。
 
@@ -304,7 +309,7 @@ CheckResult
 - Application：用内存端口测试编排、错误传播和写入决策。
 - Adapter：使用临时目录和固定样例验证格式与安全边界。
 - CLI：验证参数、stdout/stderr、JSON 纯净度和退出码。
-- E2E：在虚构 demo project 上验证三条 MVP 规则、正常反例、ignore 与前插迁移。
+- E2E：在虚构 demo project 上验证五条 MVP 规则、正常反例、允许差异、ignore、前插迁移与 HTML/JSON 一致性。
 
 修复缺陷必须先或同时增加能复现问题的回归测试。
 
@@ -325,6 +330,6 @@ CheckResult
 - 应用服务不依赖具体适配器。
 - 核心领域不依赖 Pydantic、Typer、Rich、Jinja2 或 Git。
 - 所有项目路径以 `pathlib.Path` 进入边界，以项目相对路径进入领域。
-- 当前用户闭环命令是 `scan`、`link`、`check` 与 `experiments`；`doctor` 提供环境检查。`init`、`report` 当前未实现。
+- 当前用户闭环命令是 `scan`、`link`、`check`、`report` 与 `experiments`；`doctor` 提供环境检查。`init` 当前未实现。
 - `PaperScanResult.tables` 是后续 Claim/表格语义阶段唯一允许消费的基础表格事实来源。
-- `CheckResult` 是当前终端/JSON以及未来报告格式的唯一事实来源。
+- `CheckResult` 是终端、JSON 和 HTML 报告格式的唯一事实来源。

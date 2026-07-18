@@ -1,0 +1,9 @@
+dataset:
+  split: test
+training:
+  epochs: 100
+  image_size: 224
+evaluation:
+  script_version: v1
+method:
+  name: baseline

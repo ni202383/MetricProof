@@ -5,17 +5,74 @@ paper_paths:
 result_paths:
   - path: runs/results.yml
     format: yaml
+    config_reference: configs/baseline.yml
     structured:
       records_selector: runs
       run_id_selector: id
       metrics:
         accuracy: metrics.accuracy
+        error_rate: metrics.error_rate
         f1: metrics.f1
         recall: metrics.recall
+  - path: runs/proposed.yml
+    format: yaml
+    config_reference: configs/proposed.yml
+    structured:
+      records_selector: runs
+      run_id_selector: id
+      metrics:
+        accuracy: metrics.accuracy
+        error_rate: metrics.error_rate
+        f1: metrics.f1
+        recall: metrics.recall
+  - path: runs/ablation.yml
+    format: yaml
+    config_reference: configs/ablation.yml
+    structured:
+      records_selector: runs
+      run_id_selector: id
+      metrics:
+        accuracy: metrics.accuracy
+        error_rate: metrics.error_rate
+        f1: metrics.f1
+        recall: metrics.recall
+experiment_config_paths:
+  - configs/*.yml
 metric_aliases:
   accuracy: [accuracy, accuracy gain]
+  error_rate: [error rate]
   f1: [f1, f1 score]
   recall: [recall]
+metric_directions:
+  accuracy: higher
+  error_rate: lower
+table_checks:
+  - table: tab:showcase
+    header_row: 0
+    data_start_row: 1
+    label_column: 0
+    metric_columns:
+      - column: 1
+        metric: accuracy
+      - column: 2
+        metric: error_rate
+    best_format: bold
+    second_best_format: underline
+    tie_tolerance: "0.0001"
+comparisons:
+  - comparison_id: baseline-vs-proposed
+    baseline_run: baseline
+    candidate_run: proposed
+    controlled_keys:
+      - dataset.split
+      - evaluation.script_version
+      - method.name
+      - training.epochs
+      - training.image_size
+    allowed_differences:
+      method.name: "Compared methods are expected to differ."
+    severity: warning
+    note: "These fields are declared controlled for this fictional comparison."
 numeric_tolerances:
   default:
     absolute: "0"

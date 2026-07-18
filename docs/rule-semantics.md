@@ -1,6 +1,6 @@
 # MetricProof 规则语义
 
-当前本地 MVP 仅实现 STALE_VALUE、WRONG_DELTA 和 MISSING_PROVENANCE。WRONG_BEST_MARK 与 UNFAIR_COMPARISON 仅作为后续设计保留，不得由当前 check 选择或输出。
+当前本地 MVP 实现五条规则：STALE_VALUE、WRONG_DELTA、MISSING_PROVENANCE、WRONG_BEST_MARK 与 UNFAIR_COMPARISON。它们都输出审慎的一致性诊断或启发式风险，不构成科学结论。
 
 ## 1. 通用规则协议
 
@@ -238,7 +238,7 @@ remediation 应建议运行 `metricproof link` 或显式标记非实验数字。
 - Claim 分类是启发式的；规则不保证找出所有实验结论。
 - 为降低误报，首版宁可把不确定数字留给 link 工作流，也不默认全部报错。
 
-## 6. 后续设计：`WRONG_BEST_MARK`（未实现）
+## 6. `WRONG_BEST_MARK`
 
 ### 6.1 意图
 
@@ -246,16 +246,16 @@ remediation 应建议运行 `metricproof link` 或显式标记非实验数字。
 
 ### 6.2 输入
 
-- `PaperTable`
+- 已扫描的 `LatexTable`（只使用 `parsed`）
 - 可可靠比较的数值列
-- 列对应规范指标
+- `table_checks` 显式声明 label、表头/数据行、label 列与 metric 列
 - `MetricDirection`
 - 按指标的并列容差
 
 ### 6.3 适用条件
 
 - 表格行列结构可靠。
-- 列能唯一映射到一个指标。
+- 配置把列唯一映射到一个指标；规则不从表头猜测。
 - 配置明确声明 `higher` 或 `lower`。
 - 至少有一个可比较数值。
 
@@ -279,7 +279,7 @@ remediation 应建议运行 `metricproof link` 或显式标记非实验数字。
 - 非 second-best set 单元格被下划线。
 - second-best set 单元格未下划线。
 
-若项目策略不要求“必须标全所有并列值”，该策略必须显式配置；默认要求所有 best/second-best 单元格按约定标记。
+默认要求所有 best 单元格按 `best_format` 标记。`second_best_format` 可省略；省略时完全不检查次优格式。并列值必须全部采用相同预期标记。
 
 ### 6.6 输出证据
 
@@ -290,10 +290,10 @@ remediation 应建议运行 `metricproof link` 或显式标记非实验数字。
 
 ### 6.7 局限
 
-- 首版不可靠支持复杂跨行跨列表头、宏生成单元格或隐藏数值变换。
+- 首版不可靠支持复杂跨行跨列表头、未知宏生成单元格或隐藏数值变换；degraded/unsupported 表格形成 limitation 并跳过。
 - 规则检查的是源码显示值和格式，不证明表格数字有实验来源；来源由其他规则处理。
 
-## 7. 后续设计：`UNFAIR_COMPARISON`（未实现）
+## 7. `UNFAIR_COMPARISON`
 
 ### 7.1 意图
 
@@ -324,7 +324,7 @@ remediation 应建议运行 `metricproof link` 或显式标记非实验数字。
 
 ### 7.5 判断与输出
 
-一个 comparison 可输出一个聚合 `UNFAIR_COMPARISON` 诊断，列出所有未被允许的差异：
+一个 comparison 对每个未被允许的受控 key 输出一个稳定 `UNFAIR_COMPARISON` 诊断：
 
 - comparison ID。
 - baseline/candidate run。
@@ -347,13 +347,21 @@ remediation 应建议运行 `metricproof link` 或显式标记非实验数字。
 - 相同配置不证明实验公平。
 - 受控字段选择质量由用户负责，MetricProof 只执行声明的契约。
 
+
+### 6.8 当前受控降级
+
+每个 metric column 只比较能够唯一解析为一个数值的单元格。缺失值/破折号不参与；`mean ± std` 只使用主值；包含未知宏、结构降级、越界行列或缺失 table label 时，规则输出 limitation 或跳过原因，不猜测高置信结论。`data_end_row` 为可选的 Python 风格排他上界。
+
+### 7.8 配置读取边界
+
+应用层只要求适配器加载 comparisons 中出现的 run 与 `controlled_keys`。JSON/YAML 使用安全、严格、单文档读取；数值保持 Decimal；映射/list/null 具有显式领域类型。双方都缺 key 时形成输入不足诊断，一侧缺失则是可复核差异。未知字段、重复 comparison ID、重复 key、空允许理由、路径逃逸和非有限数值受控失败。
 ## 8. 当前规则组合与去重
 
 - broken Link 先产生链接诊断，相关 `STALE_VALUE` / `WRONG_DELTA` 跳过。
 - `MISSING_PROVENANCE` 不对 registry 中已有 broken Link 的 Claim 重复报告；broken 状态已有更具体诊断。
 - ignored Claim 不产生 `MISSING_PROVENANCE`。
 - 同一 code、Claim、位置、observed/expected 与 evidence ID 集合只产生一个稳定 Diagnostic ID。
-- 后续两条规则尚未参与组合或去重。
+- 表格规则按 table/metric/row/mark 稳定区分诊断；comparison 按 comparison ID/key 稳定区分诊断。
 
 ## 9. 默认严重程度建议
 
@@ -362,8 +370,10 @@ remediation 应建议运行 `metricproof link` 或显式标记非实验数字。
 | `STALE_VALUE` | error |
 | `WRONG_DELTA` | error |
 | `MISSING_PROVENANCE` | warning |
+| `WRONG_BEST_MARK` | warning |
+| `UNFAIR_COMPARISON` | warning |
 
-`WRONG_BEST_MARK` 与 `UNFAIR_COMPARISON` 当前没有运行时严重程度，因为尚未实现。
+`UNFAIR_COMPARISON` 可在 comparison 声明上使用受控严重程度；`WRONG_BEST_MARK` 当前为 warning。
 
 严重程度可以在受控配置范围内覆盖，但规则代码与事实语义不能被配置改变。
 

@@ -5,6 +5,7 @@ from enum import StrEnum
 
 from metricproof.domain.links import NumericTolerance
 from metricproof.domain.models import Severity
+from metricproof.domain.stage6 import ComparisonSpec, MetricDirection, TableCheckSpec
 
 
 class ExperimentFormat(StrEnum):
@@ -71,5 +72,8 @@ class ProjectConfiguration:
     exclude_paths: tuple[str, ...] = ()
     paper_paths: tuple[str, ...] = ()
     metric_aliases: tuple[tuple[str, tuple[str, ...]], ...] = ()
+    metric_directions: tuple[tuple[str, MetricDirection], ...] = ()
+    table_checks: tuple[TableCheckSpec, ...] = ()
+    comparisons: tuple[ComparisonSpec, ...] = ()
     claim_registry_path: str = ".metricproof/claims.yml"
     rule_policy: RulePolicy = field(default_factory=RulePolicy)

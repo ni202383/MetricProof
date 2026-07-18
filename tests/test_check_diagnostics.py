@@ -155,7 +155,7 @@ def test_check_result_validates_ordering_and_metadata() -> None:
 
     assert result.diagnostics == ordered
     with pytest.raises(ValueError, match="unsupported CheckResult schema"):
-        replace(result, schema_version="2")
+        replace(result, schema_version="999")
     with pytest.raises(ValueError, match="tool version and project"):
         replace(result, tool_version=" ")
     with pytest.raises(ValueError, match="tool version and project"):

@@ -1,13 +1,74 @@
 schema_version: '1'
 claims:
 - identity:
-    claim_id: clm_5444d229de58e3a2737d
+    claim_id: clm_1285725634577f16322b
     fingerprint:
       version: '1'
-      digest: 5444d229de58e3a2737d6ee0b0558f35a28e3209ab108dd47ccac987a7dc704f
+      digest: 1285725634577f16322bed7ce8fb458dd53d438fe0639309621309cdf7280034
       path: paper/main.tex
       structural_anchor: context=text|environment=document|command=none
-      context_digest: 0c5919b774343d462cbd
+      context_digest: 8c65c66bc2e58218cb91
+      semantic_digest: 1ae4492ac42d9141d2f2
+      components:
+      - - fingerprint_version
+        - '1'
+      - - kind
+        - direct_result
+      - - occurrence_ordinal
+        - '0'
+      - - path
+        - paper/main.tex
+      - - prefix_anchor
+        - '%. the reported accuracy gain is <num> percentage points. the f1 score reaches'
+      - - structural_anchor
+        - context=text|environment=document|command=none
+      - - suffix_anchor
+        - . recall reaches <num>\% without a recorded source link. the timeout metric is
+      - - syntactic_context
+        - text
+    location:
+      path: paper/main.tex
+      selector: ''
+      line: 6
+      column: 22
+      end_line: 6
+      end_column: 27
+      char_start: 203
+      char_end: 208
+    raw_text: '0.750'
+    kind: direct_result
+    disposition: likely_experiment_claim
+    context:
+      summary: '%. the reported accuracy gain is <num> percentage points. the f1 score reaches <claim>
+        . recall reaches <num>\% without a recorded source link. the timeout metric is'
+      structural_anchor: context=text|environment=document|command=none
+      prefix_anchor: '%. the reported accuracy gain is <num> percentage points. the f1 score reaches'
+      suffix_anchor: . recall reaches <num>\% without a recorded source link. the timeout metric is
+      syntactic_context: text
+      occurrence_ordinal: 0
+      table_anchor: null
+      table_row: null
+      table_column: null
+  status: active
+  link:
+    type: direct
+    metric:
+      source_file: runs/proposed.yml
+      run_id: proposed
+      metric_name: f1
+      source_selector: runs.0.metrics.f1
+      scale: identity
+    confirmed_fingerprint: 1285725634577f16322bed7ce8fb458dd53d438fe0639309621309cdf7280034
+    note: Fictional showcase link.
+  note: Fictional showcase link.
+- identity:
+    claim_id: clm_3124e8b66ad51ef3e0ba
+    fingerprint:
+      version: '1'
+      digest: 3124e8b66ad51ef3e0ba9673b084f45029753353824123dcc276e728e080d23d
+      path: paper/main.tex
+      structural_anchor: context=text|environment=document|command=none
+      context_digest: 79917ddfc1a5b8722b64
       semantic_digest: f884c7092b5021aa8a5d
       components:
       - - fingerprint_version
@@ -19,11 +80,11 @@ claims:
       - - path
         - paper/main.tex
       - - prefix_anchor
-        - racy is <num>\%. proposed accuracy reaches <num>\%. the reported accuracy gain is
+        - cy is <num>\%. proposed accuracy reaches <num>\%. the reported accuracy gain is
       - - structural_anchor
         - context=text|environment=document|command=none
       - - suffix_anchor
-        - percentage points. the f1 score reaches <num>. recall reaches <num>\% without a
+        - percentage points. the f1 score reaches <num>. recall reaches <num>\% without
       - - syntactic_context
         - text
     location:
@@ -33,17 +94,17 @@ claims:
       column: 31
       end_line: 5
       end_column: 35
-      char_start: 153
-      char_end: 157
+      char_start: 157
+      char_end: 161
     raw_text: '25.0'
     kind: derived_result
     disposition: likely_experiment_claim
     context:
-      summary: racy is <num>\%. proposed accuracy reaches <num>\%. the reported accuracy gain is <claim>
-        percentage points. the f1 score reaches <num>. recall reaches <num>\% without a
+      summary: cy is <num>\%. proposed accuracy reaches <num>\%. the reported accuracy gain is <claim>
+        percentage points. the f1 score reaches <num>. recall reaches <num>\% without
       structural_anchor: context=text|environment=document|command=none
-      prefix_anchor: racy is <num>\%. proposed accuracy reaches <num>\%. the reported accuracy gain is
-      suffix_anchor: percentage points. the f1 score reaches <num>. recall reaches <num>\% without a
+      prefix_anchor: cy is <num>\%. proposed accuracy reaches <num>\%. the reported accuracy gain is
+      suffix_anchor: percentage points. the f1 score reaches <num>. recall reaches <num>\% without
       syntactic_context: text
       occurrence_ordinal: 0
       table_anchor: null
@@ -63,146 +124,27 @@ claims:
         scale: identity
     - name: candidate
       metric:
-        source_file: runs/results.yml
+        source_file: runs/proposed.yml
         run_id: proposed
         metric_name: accuracy
-        source_selector: runs.1.metrics.accuracy
+        source_selector: runs.0.metrics.accuracy
         scale: identity
     output_unit: percent_points
     output_scale: identity
-    confirmed_fingerprint: 5444d229de58e3a2737d6ee0b0558f35a28e3209ab108dd47ccac987a7dc704f
+    confirmed_fingerprint: 3124e8b66ad51ef3e0ba9673b084f45029753353824123dcc276e728e080d23d
     rounding:
       decimal_places: 1
       mode: half_up
-    note: Intentionally incorrect displayed percentage-point delta.
+    note: Fictional percentage-point derivation.
+  note: Fictional showcase link.
 - identity:
-    claim_id: clm_6fb4dff79a6f35b7b2a5
+    claim_id: clm_33ea94bb244f90a698bf
     fingerprint:
       version: '1'
-      digest: 6fb4dff79a6f35b7b2a5deadc9e7d5b4e658c507797deaa040602729e9189f09
+      digest: 33ea94bb244f90a698bfd0212d7033dfc54f94c85b54e1d8be16a6be55590d1b
       path: paper/main.tex
       structural_anchor: context=text|environment=document|command=none
-      context_digest: 8fa1a1565d61225d5afd
-      semantic_digest: e0b4e22824ced3adf8dd
-      components:
-      - - fingerprint_version
-        - '1'
-      - - kind
-        - direct_result
-      - - occurrence_ordinal
-        - '0'
-      - - path
-        - paper/main.tex
-      - - prefix_anchor
-        - ment} on the test split, baseline accuracy is <num>\%. proposed accuracy reaches
-      - - structural_anchor
-        - context=text|environment=document|command=none
-      - - suffix_anchor
-        - . the reported accuracy gain is <num> percentage points. the f1 score reaches <num>
-      - - syntactic_context
-        - text
-    location:
-      path: paper/main.tex
-      selector: ''
-      line: 4
-      column: 27
-      end_line: 4
-      end_column: 33
-      char_start: 115
-      char_end: 121
-    raw_text: 80.0\%
-    kind: direct_result
-    disposition: likely_experiment_claim
-    context:
-      summary: ment} on the test split, baseline accuracy is <num>\%. proposed accuracy reaches <claim>
-        . the reported accuracy gain is <num> percentage points. the f1 score reaches <num>
-      structural_anchor: context=text|environment=document|command=none
-      prefix_anchor: ment} on the test split, baseline accuracy is <num>\%. proposed accuracy reaches
-      suffix_anchor: . the reported accuracy gain is <num> percentage points. the f1 score reaches <num>
-      syntactic_context: text
-      occurrence_ordinal: 0
-      table_anchor: null
-      table_row: null
-      table_column: null
-  status: active
-  link:
-    type: direct
-    metric:
-      source_file: runs/results.yml
-      run_id: proposed
-      metric_name: accuracy
-      source_selector: runs.1.metrics.accuracy
-      scale: identity
-    confirmed_fingerprint: 6fb4dff79a6f35b7b2a5deadc9e7d5b4e658c507797deaa040602729e9189f09
-    note: Intentionally stale for the demo.
-- identity:
-    claim_id: clm_912e38031760dfd36d72
-    fingerprint:
-      version: '1'
-      digest: 912e38031760dfd36d72d0b1eccdf4d1ced84d4c6a0578933171507c3457c71a
-      path: paper/main.tex
-      structural_anchor: context=text|environment=document|command=none
-      context_digest: 8fbba2ef92178b0c98c0
-      semantic_digest: 1ae4492ac42d9141d2f2
-      components:
-      - - fingerprint_version
-        - '1'
-      - - kind
-        - direct_result
-      - - occurrence_ordinal
-        - '0'
-      - - path
-        - paper/main.tex
-      - - prefix_anchor
-        - <num>\%. the reported accuracy gain is <num> percentage points. the f1 score reaches
-      - - structural_anchor
-        - context=text|environment=document|command=none
-      - - suffix_anchor
-        - . recall reaches <num>\% without a recorded source link. the timeout metric is <num>
-      - - syntactic_context
-        - text
-    location:
-      path: paper/main.tex
-      selector: ''
-      line: 6
-      column: 22
-      end_line: 6
-      end_column: 27
-      char_start: 198
-      char_end: 203
-    raw_text: '0.750'
-    kind: direct_result
-    disposition: likely_experiment_claim
-    context:
-      summary: <num>\%. the reported accuracy gain is <num> percentage points. the f1 score reaches <claim>
-        . recall reaches <num>\% without a recorded source link. the timeout metric is <num>
-      structural_anchor: context=text|environment=document|command=none
-      prefix_anchor: <num>\%. the reported accuracy gain is <num> percentage points. the f1 score reaches
-      suffix_anchor: . recall reaches <num>\% without a recorded source link. the timeout metric is <num>
-      syntactic_context: text
-      occurrence_ordinal: 0
-      table_anchor: null
-      table_row: null
-      table_column: null
-  status: active
-  link:
-    type: direct
-    metric:
-      source_file: runs/results.yml
-      run_id: proposed
-      metric_name: f1
-      source_selector: runs.1.metrics.f1
-      scale: identity
-    confirmed_fingerprint: 912e38031760dfd36d72d0b1eccdf4d1ced84d4c6a0578933171507c3457c71a
-    note: Consistent scalar example.
-- identity:
-    claim_id: clm_cc2bac2b0d8d596d9499
-    fingerprint:
-      version: '1'
-      digest: cc2bac2b0d8d596d949981f8addf3831adcb582a8fb98582c29cc73ffbfb1e9c
-      path: paper/main.tex
-      structural_anchor: context=text|environment=document|command=none
-      context_digest: 1ca134d10e778094f63f
+      context_digest: 833583f8ca9bd8abbb23
       semantic_digest: cd9bfb32ef8e9cc900f2
       components:
       - - fingerprint_version
@@ -214,11 +156,11 @@ claims:
       - - path
         - paper/main.tex
       - - prefix_anchor
-        - documentclass{article} \begin{document} on the test split, baseline accuracy is
+        - cumentclass{article} \begin{document} on the test split, baseline accuracy is
       - - structural_anchor
         - context=text|environment=document|command=none
       - - suffix_anchor
-        - . proposed accuracy reaches <num>\%. the reported accuracy gain is <num> percentag
+        - . proposed accuracy reaches <num>\%. the reported accuracy gain is <num> percent
       - - syntactic_context
         - text
     location:
@@ -228,17 +170,17 @@ claims:
       column: 41
       end_line: 3
       end_column: 47
-      char_start: 81
-      char_end: 87
+      char_start: 83
+      char_end: 89
     raw_text: 70.0\%
     kind: experiment_quantity
     disposition: possible_experiment_claim
     context:
-      summary: documentclass{article} \begin{document} on the test split, baseline accuracy is <claim>
-        . proposed accuracy reaches <num>\%. the reported accuracy gain is <num> percentag
+      summary: cumentclass{article} \begin{document} on the test split, baseline accuracy is <claim> .
+        proposed accuracy reaches <num>\%. the reported accuracy gain is <num> percent
       structural_anchor: context=text|environment=document|command=none
-      prefix_anchor: documentclass{article} \begin{document} on the test split, baseline accuracy is
-      suffix_anchor: . proposed accuracy reaches <num>\%. the reported accuracy gain is <num> percentag
+      prefix_anchor: cumentclass{article} \begin{document} on the test split, baseline accuracy is
+      suffix_anchor: . proposed accuracy reaches <num>\%. the reported accuracy gain is <num> percent
       syntactic_context: text
       occurrence_ordinal: 0
       table_anchor: null
@@ -253,16 +195,200 @@ claims:
       metric_name: accuracy
       source_selector: runs.0.metrics.accuracy
       scale: identity
-    confirmed_fingerprint: cc2bac2b0d8d596d949981f8addf3831adcb582a8fb98582c29cc73ffbfb1e9c
-    note: Consistent fraction-to-percent example.
+    confirmed_fingerprint: 33ea94bb244f90a698bfd0212d7033dfc54f94c85b54e1d8be16a6be55590d1b
+    note: Fictional showcase link.
+  note: Fictional showcase link.
 - identity:
-    claim_id: clm_ea4aae2bd3f3af260d81
+    claim_id: clm_4ec5e6dab4974be29233
     fingerprint:
       version: '1'
-      digest: ea4aae2bd3f3af260d81422943dbade8bf9e8a6c7f1fa1c7eb0fddf1258ecca9
+      digest: 4ec5e6dab4974be29233ecb18c74bdc6ad610f32e27bc93b938e85dd6fe041db
+      path: paper/main.tex
+      structural_anchor: table=label:tab:showcase|row=1|column=1
+      context_digest: 4bb10a034d6fb6e3cf2c
+      semantic_digest: 374bf2d5bf3bbfdfb71f
+      components:
+      - - fingerprint_version
+        - '1'
+      - - kind
+        - direct_result
+      - - occurrence_ordinal
+        - '0'
+      - - path
+        - paper/main.tex
+      - - prefix_anchor
+        - :showcase} \begin{tabular}{lrr} method & accuracy & error rate \\ baseline &
+      - - structural_anchor
+        - table=label:tab:showcase|row=1|column=1
+      - - suffix_anchor
+        - '& <num> \\ proposed & \textbf{<num>} & \textbf{<num>} \\ ablation & \textbf{<num>'
+      - - syntactic_context
+        - table_environment
+    location:
+      path: paper/main.tex
+      selector: ''
+      line: 15
+      column: 12
+      end_line: 15
+      end_column: 16
+      char_start: 498
+      char_end: 502
+    raw_text: '70.0'
+    kind: direct_result
+    disposition: likely_experiment_claim
+    context:
+      summary: :showcase} \begin{tabular}{lrr} method & accuracy & error rate \\ baseline & <claim> &
+        <num> \\ proposed & \textbf{<num>} & \textbf{<num>} \\ ablation & \textbf{<num>
+      structural_anchor: table=label:tab:showcase|row=1|column=1
+      prefix_anchor: :showcase} \begin{tabular}{lrr} method & accuracy & error rate \\ baseline &
+      suffix_anchor: '& <num> \\ proposed & \textbf{<num>} & \textbf{<num>} \\ ablation & \textbf{<num>'
+      syntactic_context: table_environment
+      occurrence_ordinal: 0
+      table_anchor: label:tab:showcase
+      table_row: 1
+      table_column: 1
+  status: active
+  link:
+    type: direct
+    metric:
+      source_file: runs/results.yml
+      run_id: baseline
+      metric_name: accuracy
+      source_selector: runs.0.metrics.accuracy
+      scale: fraction_to_percent
+    confirmed_fingerprint: 4ec5e6dab4974be29233ecb18c74bdc6ad610f32e27bc93b938e85dd6fe041db
+    note: Fictional showcase link.
+  note: Fictional showcase link.
+- identity:
+    claim_id: clm_6fc99ebfd1ad9d427ccf
+    fingerprint:
+      version: '1'
+      digest: 6fc99ebfd1ad9d427ccfc1162b7a763d65bba3dfeddc82d1f91be55d6b9f36be
+      path: paper/main.tex
+      structural_anchor: table=label:tab:showcase|row=2|column=1
+      context_digest: e98c879ee6bb92bf02a7
+      semantic_digest: 6d0dc926d0068be03afd
+      components:
+      - - fingerprint_version
+        - '1'
+      - - kind
+        - direct_result
+      - - occurrence_ordinal
+        - '0'
+      - - path
+        - paper/main.tex
+      - - prefix_anchor
+        - ethod & accuracy & error rate \\ baseline & <num> & <num> \\ proposed & \textbf{
+      - - structural_anchor
+        - table=label:tab:showcase|row=2|column=1
+      - - suffix_anchor
+        - '} & \textbf{<num>} \\ ablation & \textbf{<num>} & \underline{<num>} \\ \end{tabul'
+      - - syntactic_context
+        - table_environment
+    location:
+      path: paper/main.tex
+      selector: ''
+      line: 16
+      column: 20
+      end_line: 16
+      end_column: 24
+      char_start: 533
+      char_end: 537
+    raw_text: '90.0'
+    kind: direct_result
+    disposition: likely_experiment_claim
+    context:
+      summary: ethod & accuracy & error rate \\ baseline & <num> & <num> \\ proposed & \textbf{ <claim>
+        } & \textbf{<num>} \\ ablation & \textbf{<num>} & \underline{<num>} \\ \end{tabul
+      structural_anchor: table=label:tab:showcase|row=2|column=1
+      prefix_anchor: ethod & accuracy & error rate \\ baseline & <num> & <num> \\ proposed & \textbf{
+      suffix_anchor: '} & \textbf{<num>} \\ ablation & \textbf{<num>} & \underline{<num>} \\ \end{tabul'
+      syntactic_context: table_environment
+      occurrence_ordinal: 0
+      table_anchor: label:tab:showcase
+      table_row: 2
+      table_column: 1
+  status: active
+  link:
+    type: direct
+    metric:
+      source_file: runs/proposed.yml
+      run_id: proposed
+      metric_name: accuracy
+      source_selector: runs.0.metrics.accuracy
+      scale: fraction_to_percent
+    confirmed_fingerprint: 6fc99ebfd1ad9d427ccfc1162b7a763d65bba3dfeddc82d1f91be55d6b9f36be
+    note: Fictional showcase link.
+  note: Fictional showcase link.
+- identity:
+    claim_id: clm_71127469a68b9ef33ca4
+    fingerprint:
+      version: '1'
+      digest: 71127469a68b9ef33ca4e26d649fb69759a9fac2f4607aa252047bac2bd60fb9
+      path: paper/main.tex
+      structural_anchor: table=label:tab:showcase|row=2|column=2
+      context_digest: e607fbadba932cc2b8d1
+      semantic_digest: 19da4c2c0245553b8f0a
+      components:
+      - - fingerprint_version
+        - '1'
+      - - kind
+        - direct_result
+      - - occurrence_ordinal
+        - '0'
+      - - path
+        - paper/main.tex
+      - - prefix_anchor
+        - '& error rate \\ baseline & <num> & <num> \\ proposed & \textbf{<num>} & \textbf{'
+      - - structural_anchor
+        - table=label:tab:showcase|row=2|column=2
+      - - suffix_anchor
+        - '} \\ ablation & \textbf{<num>} & \underline{<num>} \\ \end{tabular} \end{table}'
+      - - syntactic_context
+        - table_environment
+    location:
+      path: paper/main.tex
+      selector: ''
+      line: 16
+      column: 36
+      end_line: 16
+      end_column: 40
+      char_start: 549
+      char_end: 553
+    raw_text: '10.0'
+    kind: direct_result
+    disposition: likely_experiment_claim
+    context:
+      summary: '& error rate \\ baseline & <num> & <num> \\ proposed & \textbf{<num>} & \textbf{ <claim>
+        } \\ ablation & \textbf{<num>} & \underline{<num>} \\ \end{tabular} \end{table}'
+      structural_anchor: table=label:tab:showcase|row=2|column=2
+      prefix_anchor: '& error rate \\ baseline & <num> & <num> \\ proposed & \textbf{<num>} & \textbf{'
+      suffix_anchor: '} \\ ablation & \textbf{<num>} & \underline{<num>} \\ \end{tabular} \end{table}'
+      syntactic_context: table_environment
+      occurrence_ordinal: 0
+      table_anchor: label:tab:showcase
+      table_row: 2
+      table_column: 2
+  status: active
+  link:
+    type: direct
+    metric:
+      source_file: runs/proposed.yml
+      run_id: proposed
+      metric_name: error_rate
+      source_selector: runs.0.metrics.error_rate
+      scale: fraction_to_percent
+    confirmed_fingerprint: 71127469a68b9ef33ca4e26d649fb69759a9fac2f4607aa252047bac2bd60fb9
+    note: Fictional showcase link.
+  note: Fictional showcase link.
+- identity:
+    claim_id: clm_8d88724bf815a67c6f49
+    fingerprint:
+      version: '1'
+      digest: 8d88724bf815a67c6f4921314c104082cb57b7e85ae9b0390a09e6815fc00bc3
       path: paper/main.tex
       structural_anchor: context=text|environment=document|command=none
-      context_digest: 53a0897ab671a9b2b29e
+      context_digest: 0c777b3e4d7d565c2622
       semantic_digest: 6db4ab59f7ff438868d8
       components:
       - - fingerprint_version
@@ -274,11 +400,11 @@ claims:
       - - path
         - paper/main.tex
       - - prefix_anchor
-        - <num>. recall reaches <num>\% without a recorded source link. the timeout metric is
+        - . recall reaches <num>\% without a recorded source link. the timeout metric is
       - - structural_anchor
         - context=text|environment=document|command=none
       - - suffix_anchor
-        - seconds; it is a run setting, not an experimental result. \end{document}
+        - seconds; it is a run setting, not an experimental result. \begin{table} \ca
       - - syntactic_context
         - text
     location:
@@ -288,18 +414,17 @@ claims:
       column: 23
       end_line: 8
       end_column: 27
-      char_start: 281
-      char_end: 285
+      char_start: 288
+      char_end: 292
     raw_text: '10.0'
     kind: experiment_quantity
     disposition: possible_experiment_claim
     context:
-      summary: <num>. recall reaches <num>\% without a recorded source link. the timeout metric is <claim>
-        seconds; it is a run setting, not an experimental result. \end{document}
+      summary: . recall reaches <num>\% without a recorded source link. the timeout metric is <claim>
+        seconds; it is a run setting, not an experimental result. \begin{table} \ca
       structural_anchor: context=text|environment=document|command=none
-      prefix_anchor: <num>. recall reaches <num>\% without a recorded source link. the timeout metric
-        is
-      suffix_anchor: seconds; it is a run setting, not an experimental result. \end{document}
+      prefix_anchor: . recall reaches <num>\% without a recorded source link. the timeout metric is
+      suffix_anchor: seconds; it is a run setting, not an experimental result. \begin{table} \ca
       syntactic_context: text
       occurrence_ordinal: 0
       table_anchor: null
@@ -307,5 +432,250 @@ claims:
       table_column: null
   status: ignored
   ignore:
-    reason: non_experimental_number
-    note: Run timeout setting, not a reported experiment result.
+    reason: user_decision
+    note: A run setting, not a reported experimental result.
+  note: A run setting, not a reported experimental result.
+- identity:
+    claim_id: clm_ab59a0a41f0ac65ce4f8
+    fingerprint:
+      version: '1'
+      digest: ab59a0a41f0ac65ce4f815c7cd9cbd54fa8a903e0896d9cd11302d5fe8a45b4e
+      path: paper/main.tex
+      structural_anchor: table=label:tab:showcase|row=3|column=1
+      context_digest: 9319d70c83589d505045
+      semantic_digest: 25ed75829567d1bd64a4
+      components:
+      - - fingerprint_version
+        - '1'
+      - - kind
+        - direct_result
+      - - occurrence_ordinal
+        - '0'
+      - - path
+        - paper/main.tex
+      - - prefix_anchor
+        - <num> & <num> \\ proposed & \textbf{<num>} & \textbf{<num>} \\ ablation & \textbf{
+      - - structural_anchor
+        - table=label:tab:showcase|row=3|column=1
+      - - suffix_anchor
+        - '} & \underline{<num>} \\ \end{tabular} \end{table} \end{document}'
+      - - syntactic_context
+        - table_environment
+    location:
+      path: paper/main.tex
+      selector: ''
+      line: 17
+      column: 20
+      end_line: 17
+      end_column: 24
+      char_start: 578
+      char_end: 582
+    raw_text: '80.0'
+    kind: direct_result
+    disposition: likely_experiment_claim
+    context:
+      summary: <num> & <num> \\ proposed & \textbf{<num>} & \textbf{<num>} \\ ablation & \textbf{ <claim>
+        } & \underline{<num>} \\ \end{tabular} \end{table} \end{document}
+      structural_anchor: table=label:tab:showcase|row=3|column=1
+      prefix_anchor: <num> & <num> \\ proposed & \textbf{<num>} & \textbf{<num>} \\ ablation & \textbf{
+      suffix_anchor: '} & \underline{<num>} \\ \end{tabular} \end{table} \end{document}'
+      syntactic_context: table_environment
+      occurrence_ordinal: 0
+      table_anchor: label:tab:showcase
+      table_row: 3
+      table_column: 1
+  status: active
+  link:
+    type: direct
+    metric:
+      source_file: runs/ablation.yml
+      run_id: ablation
+      metric_name: accuracy
+      source_selector: runs.0.metrics.accuracy
+      scale: fraction_to_percent
+    confirmed_fingerprint: ab59a0a41f0ac65ce4f815c7cd9cbd54fa8a903e0896d9cd11302d5fe8a45b4e
+    note: Fictional showcase link.
+  note: Fictional showcase link.
+- identity:
+    claim_id: clm_b64be6f35c3f7a60c418
+    fingerprint:
+      version: '1'
+      digest: b64be6f35c3f7a60c418d5fd16ce52bbd1361f2ea5139781abfdac9b91610cf3
+      path: paper/main.tex
+      structural_anchor: context=text|environment=document|command=none
+      context_digest: f3a3406c0775c72e7f39
+      semantic_digest: e0b4e22824ced3adf8dd
+      components:
+      - - fingerprint_version
+        - '1'
+      - - kind
+        - direct_result
+      - - occurrence_ordinal
+        - '0'
+      - - path
+        - paper/main.tex
+      - - prefix_anchor
+        - nt} on the test split, baseline accuracy is <num>\%. proposed accuracy reaches
+      - - structural_anchor
+        - context=text|environment=document|command=none
+      - - suffix_anchor
+        - . the reported accuracy gain is <num> percentage points. the f1 score reaches <num>
+      - - syntactic_context
+        - text
+    location:
+      path: paper/main.tex
+      selector: ''
+      line: 4
+      column: 27
+      end_line: 4
+      end_column: 33
+      char_start: 118
+      char_end: 124
+    raw_text: 80.0\%
+    kind: direct_result
+    disposition: likely_experiment_claim
+    context:
+      summary: nt} on the test split, baseline accuracy is <num>\%. proposed accuracy reaches <claim>
+        . the reported accuracy gain is <num> percentage points. the f1 score reaches <num>
+      structural_anchor: context=text|environment=document|command=none
+      prefix_anchor: nt} on the test split, baseline accuracy is <num>\%. proposed accuracy reaches
+      suffix_anchor: . the reported accuracy gain is <num> percentage points. the f1 score reaches <num>
+      syntactic_context: text
+      occurrence_ordinal: 0
+      table_anchor: null
+      table_row: null
+      table_column: null
+  status: active
+  link:
+    type: direct
+    metric:
+      source_file: runs/proposed.yml
+      run_id: proposed
+      metric_name: accuracy
+      source_selector: runs.0.metrics.accuracy
+      scale: identity
+    confirmed_fingerprint: b64be6f35c3f7a60c418d5fd16ce52bbd1361f2ea5139781abfdac9b91610cf3
+    note: Fictional showcase link.
+  note: Fictional showcase link.
+- identity:
+    claim_id: clm_e8dbc0a75fbf8c2237bf
+    fingerprint:
+      version: '1'
+      digest: e8dbc0a75fbf8c2237bf3cac2ccea5bad711756a7a1f3f83309b40b92ccd2d9c
+      path: paper/main.tex
+      structural_anchor: table=label:tab:showcase|row=1|column=2
+      context_digest: 6f7986a4793b76afef54
+      semantic_digest: ec916b1747400f898afd
+      components:
+      - - fingerprint_version
+        - '1'
+      - - kind
+        - direct_result
+      - - occurrence_ordinal
+        - '0'
+      - - path
+        - paper/main.tex
+      - - prefix_anchor
+        - se} \begin{tabular}{lrr} method & accuracy & error rate \\ baseline & <num> &
+      - - structural_anchor
+        - table=label:tab:showcase|row=1|column=2
+      - - suffix_anchor
+        - \\ proposed & \textbf{<num>} & \textbf{<num>} \\ ablation & \textbf{<num>} & \un
+      - - syntactic_context
+        - table_environment
+    location:
+      path: paper/main.tex
+      selector: ''
+      line: 15
+      column: 19
+      end_line: 15
+      end_column: 23
+      char_start: 505
+      char_end: 509
+    raw_text: '30.0'
+    kind: direct_result
+    disposition: likely_experiment_claim
+    context:
+      summary: se} \begin{tabular}{lrr} method & accuracy & error rate \\ baseline & <num> & <claim> \\
+        proposed & \textbf{<num>} & \textbf{<num>} \\ ablation & \textbf{<num>} & \un
+      structural_anchor: table=label:tab:showcase|row=1|column=2
+      prefix_anchor: se} \begin{tabular}{lrr} method & accuracy & error rate \\ baseline & <num> &
+      suffix_anchor: \\ proposed & \textbf{<num>} & \textbf{<num>} \\ ablation & \textbf{<num>} & \un
+      syntactic_context: table_environment
+      occurrence_ordinal: 0
+      table_anchor: label:tab:showcase
+      table_row: 1
+      table_column: 2
+  status: active
+  link:
+    type: direct
+    metric:
+      source_file: runs/results.yml
+      run_id: baseline
+      metric_name: error_rate
+      source_selector: runs.0.metrics.error_rate
+      scale: fraction_to_percent
+    confirmed_fingerprint: e8dbc0a75fbf8c2237bf3cac2ccea5bad711756a7a1f3f83309b40b92ccd2d9c
+    note: Fictional showcase link.
+  note: Fictional showcase link.
+- identity:
+    claim_id: clm_e92e24514dd60b1220bc
+    fingerprint:
+      version: '1'
+      digest: e92e24514dd60b1220bcb0ad8d943d74efdf99e5de80b01f0894f6a315fbc245
+      path: paper/main.tex
+      structural_anchor: table=label:tab:showcase|row=3|column=2
+      context_digest: 9a2e11bf4e78e0cb570f
+      semantic_digest: a3e0c79575bb6a2bca6c
+      components:
+      - - fingerprint_version
+        - '1'
+      - - kind
+        - direct_result
+      - - occurrence_ordinal
+        - '0'
+      - - path
+        - paper/main.tex
+      - - prefix_anchor
+        - posed & \textbf{<num>} & \textbf{<num>} \\ ablation & \textbf{<num>} & \underline{
+      - - structural_anchor
+        - table=label:tab:showcase|row=3|column=2
+      - - suffix_anchor
+        - '} \\ \end{tabular} \end{table} \end{document}'
+      - - syntactic_context
+        - table_environment
+    location:
+      path: paper/main.tex
+      selector: ''
+      line: 17
+      column: 39
+      end_line: 17
+      end_column: 43
+      char_start: 597
+      char_end: 601
+    raw_text: '20.0'
+    kind: direct_result
+    disposition: likely_experiment_claim
+    context:
+      summary: posed & \textbf{<num>} & \textbf{<num>} \\ ablation & \textbf{<num>} & \underline{ <claim>
+        } \\ \end{tabular} \end{table} \end{document}
+      structural_anchor: table=label:tab:showcase|row=3|column=2
+      prefix_anchor: posed & \textbf{<num>} & \textbf{<num>} \\ ablation & \textbf{<num>} & \underline{
+      suffix_anchor: '} \\ \end{tabular} \end{table} \end{document}'
+      syntactic_context: table_environment
+      occurrence_ordinal: 0
+      table_anchor: label:tab:showcase
+      table_row: 3
+      table_column: 2
+  status: active
+  link:
+    type: direct
+    metric:
+      source_file: runs/ablation.yml
+      run_id: ablation
+      metric_name: error_rate
+      source_selector: runs.0.metrics.error_rate
+      scale: fraction_to_percent
+    confirmed_fingerprint: e92e24514dd60b1220bcb0ad8d943d74efdf99e5de80b01f0894f6a315fbc245
+    note: Fictional showcase link.
+  note: Fictional showcase link.

@@ -1,0 +1,9 @@
+dataset:
+  split: validation
+training:
+  epochs: 120
+  image_size: 224
+evaluation:
+  script_version: v1
+method:
+  name: metricproof-net

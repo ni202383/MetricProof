@@ -24,6 +24,13 @@ from metricproof.application.configuration import (
 from metricproof.application.input_errors import ProjectConfigurationError
 from metricproof.domain.links import NumericTolerance
 from metricproof.domain.models import Severity
+from metricproof.domain.paper import LatexFormattingKind
+from metricproof.domain.stage6 import (
+    ComparisonSpec,
+    MetricDirection,
+    TableCheckSpec,
+    TableMetricSpec,
+)
 
 CONFIG_RELATIVE_PATH = Path(".metricproof") / "config.yml"
 SUPPORTED_SCHEMA_VERSION = "1"
@@ -104,13 +111,53 @@ class _RawTolerances(_StrictModel):
     metrics: dict[str, _RawTolerance] = Field(default_factory=dict)
 
 
+class _RawTableMetric(_StrictModel):
+    column: int = Field(ge=0)
+    metric: str
+    direction: Literal["higher", "lower"] | None = None
+
+
+class _RawTableCheck(_StrictModel):
+    table: str
+    header_row: int = Field(ge=0)
+    data_start_row: int = Field(ge=0)
+    data_end_row: int | None = Field(default=None, ge=0)
+    exclude_rows: list[int] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
+    label_column: int = Field(ge=0)
+    metric_columns: list[_RawTableMetric]
+    best_format: Literal["bold", "none"] = "bold"
+    second_best_format: Literal["underline", "none"] = "underline"
+    tie_tolerance: str = "0"
+
+    @model_validator(mode="after")
+    def validate_columns(self) -> _RawTableCheck:
+        columns = [item.column for item in self.metric_columns]
+        if not columns or len(columns) != len(set(columns)):
+            raise ValueError("metric_columns must be non-empty and use unique columns")
+        if self.label_column in columns:
+            raise ValueError("label_column must not also be a metric column")
+        if len(self.exclude_rows) != len(set(self.exclude_rows)):
+            raise ValueError("exclude_rows contains duplicates")
+        return self
+
+
 class _RawComparison(_StrictModel):
     comparison_id: str
     baseline_run: str
     candidate_run: str
     controlled_keys: list[str]
     allowed_differences: dict[str, str] = Field(default_factory=dict)
+    tolerances: dict[str, _RawTolerance] = Field(default_factory=dict)
     severity: Literal["info", "warning", "error"] = "warning"
+    note: str = "Declared as a controlled condition in project configuration."
+
+    @model_validator(mode="after")
+    def validate_comparison(self) -> _RawComparison:
+        if not self.controlled_keys or len(self.controlled_keys) != len(set(self.controlled_keys)):
+            raise ValueError("controlled_keys must be non-empty and unique")
+        if any(not value.strip() for value in self.allowed_differences.values()):
+            raise ValueError("allowed_differences values must contain a reason")
+        return self
 
 
 class _RawPolicy(_StrictModel):
@@ -134,12 +181,23 @@ class _RawConfig(_StrictModel):
     paper_paths: list[str] = Field(default_factory=list)
     metric_aliases: dict[str, list[str]] = Field(default_factory=dict)
     metric_directions: dict[str, Literal["higher", "lower"]] = Field(default_factory=dict)
+    table_checks: list[_RawTableCheck] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
     numeric_tolerances: _RawTolerances | None = None
     controlled_config_keys: list[str] = Field(default_factory=list)
     ignored_claim_patterns: list[str] = Field(default_factory=list)
     comparisons: list[_RawComparison] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
     policy: _RawPolicy | None = None
     limits: _RawLimits | None = None
+
+    @model_validator(mode="after")
+    def validate_stage6_ids(self) -> _RawConfig:
+        table_refs = [item.table for item in self.table_checks]
+        comparison_ids = [item.comparison_id for item in self.comparisons]
+        if len(table_refs) != len(set(table_refs)):
+            raise ValueError("table_checks contains duplicate table references")
+        if len(comparison_ids) != len(set(comparison_ids)):
+            raise ValueError("comparisons contains duplicate comparison_id values")
+        return self
 
 
 class YamlConfigurationRepository:
@@ -263,6 +321,12 @@ class YamlConfigurationRepository:
             paper_paths.append(_relative(root, paper))
 
         metric_aliases = normalize_metric_aliases(raw.metric_aliases, config_file=display_path)
+        metric_directions = tuple(
+            (name, MetricDirection(direction))
+            for name, direction in sorted(raw.metric_directions.items())
+        )
+        table_checks = _build_table_checks(raw, display_path)
+        comparisons = _build_comparisons(raw, display_path)
         rule_policy = _build_rule_policy(raw, display_path)
         sources: list[ExperimentSource] = []
         resolved_sources: set[Path] = set()
@@ -310,9 +374,92 @@ class YamlConfigurationRepository:
             exclude_paths=excludes,
             paper_paths=tuple(sorted(paper_paths)),
             metric_aliases=metric_aliases,
+            metric_directions=metric_directions,
+            table_checks=table_checks,
+            comparisons=comparisons,
             claim_registry_path=claim_registry_path,
             rule_policy=rule_policy,
         )
+
+
+def _build_table_checks(raw: _RawConfig, config_file: str) -> tuple[TableCheckSpec, ...]:
+    result: list[TableCheckSpec] = []
+    for index, item in enumerate(raw.table_checks):
+        try:
+            tolerance = Decimal(item.tie_tolerance)
+            metrics = tuple(
+                TableMetricSpec(
+                    column=metric.column,
+                    metric=metric.metric,
+                    direction=MetricDirection(
+                        metric.direction or raw.metric_directions.get(metric.metric, "")
+                    ),
+                )
+                for metric in item.metric_columns
+            )
+            result.append(
+                TableCheckSpec(
+                    table=item.table,
+                    header_row=item.header_row,
+                    data_start_row=item.data_start_row,
+                    data_end_row=item.data_end_row,
+                    exclude_rows=tuple(sorted(item.exclude_rows)),
+                    label_column=item.label_column,
+                    metric_columns=metrics,
+                    best_format=(LatexFormattingKind.BOLD if item.best_format == "bold" else None),
+                    second_best_format=(
+                        LatexFormattingKind.UNDERLINE
+                        if item.second_best_format == "underline"
+                        else None
+                    ),
+                    tie_tolerance=tolerance,
+                )
+            )
+        except (InvalidOperation, ValueError) as error:
+            raise _config_error(
+                config_file,
+                f"table_checks.{index}",
+                f"invalid explicit table semantics: {error}",
+                "declare valid columns, directions, formats, and a non-negative decimal tolerance",
+            ) from error
+    return tuple(sorted(result, key=lambda item: item.table))
+
+
+def _build_comparisons(raw: _RawConfig, config_file: str) -> tuple[ComparisonSpec, ...]:
+    result: list[ComparisonSpec] = []
+    for index, item in enumerate(raw.comparisons):
+        try:
+            tolerances = tuple(
+                (
+                    key,
+                    _numeric_tolerance(
+                        tolerance,
+                        config_file,
+                        f"comparisons.{index}.tolerances.{key}",
+                    ),
+                )
+                for key, tolerance in sorted(item.tolerances.items())
+            )
+            result.append(
+                ComparisonSpec(
+                    comparison_id=item.comparison_id,
+                    baseline_run=item.baseline_run,
+                    candidate_run=item.candidate_run,
+                    controlled_keys=tuple(sorted(item.controlled_keys)),
+                    allowed_differences=tuple(sorted(item.allowed_differences.items())),
+                    tolerances=tolerances,
+                    severity=Severity(item.severity),
+                    note=item.note,
+                )
+            )
+        except ValueError as error:
+            raise _config_error(
+                config_file,
+                f"comparisons.{index}",
+                f"invalid declared comparison: {error}",
+                "use unique IDs, explicit runs, controlled keys, and reviewable reasons",
+            ) from error
+    return tuple(sorted(result, key=lambda item: item.comparison_id))
 
 
 def _build_rule_policy(raw: _RawConfig, config_file: str) -> RulePolicy:

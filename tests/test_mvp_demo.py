@@ -14,7 +14,7 @@ from metricproof.application.errors import ExitCode
 from metricproof.cli.main import app
 
 
-def test_mvp_demo_proves_consistent_ignored_and_three_diagnostic_paths(
+def test_mvp_demo_proves_five_rules_and_quiet_cases(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     root = Path(__file__).resolve().parents[1] / "examples" / "mvp-demo"
@@ -25,6 +25,11 @@ def test_mvp_demo_proves_consistent_ignored_and_three_diagnostic_paths(
                 root / ".metricproof" / "claims.yml",
                 root / "paper" / "main.tex",
                 root / "runs" / "results.yml",
+                root / "runs" / "proposed.yml",
+                root / "runs" / "ablation.yml",
+                root / "configs" / "baseline.yml",
+                root / "configs" / "proposed.yml",
+                root / "configs" / "ablation.yml",
             )
         )
     )
@@ -35,25 +40,29 @@ def test_mvp_demo_proves_consistent_ignored_and_three_diagnostic_paths(
 
     assert completed.exit_code == ExitCode.ANALYSIS_FAILURE, completed.stdout
     payload = cast(dict[str, Any], json.loads(completed.stdout))
-    assert [item["code"] for item in payload["diagnostics"]] == [
+    codes = [item["code"] for item in payload["diagnostics"]]
+    assert set(codes) == {
         "STALE_VALUE",
         "WRONG_DELTA",
         "MISSING_PROVENANCE",
-    ]
-    assert payload["summary"]["checked_claim_count"] == 6
+        "WRONG_BEST_MARK",
+        "UNFAIR_COMPARISON",
+    }
+    assert payload["summary"]["checked_claim_count"] == 12
     assert payload["summary"]["registry"] == {
-        "active": 4,
+        "active": 10,
         "ignored": 1,
         "unlinked": 1,
     }
     assert payload["summary"]["diagnostics_by_severity"] == {
         "error": 2,
-        "warning": 1,
+        "warning": 5,
     }
     assert payload["diagnostics"][0]["observed"] == "0.800"
     assert payload["diagnostics"][0]["expected"] == "0.90"
-    assert payload["diagnostics"][1]["observed"] == "25.0"
-    assert payload["diagnostics"][1]["expected"] == "20.0"
+    delta = next(item for item in payload["diagnostics"] if item["code"] == "WRONG_DELTA")
+    assert delta["observed"] == "25.0"
+    assert delta["expected"] == "20.0"
     assert {path: path.read_bytes() for path in tracked_inputs} == before
 
 
@@ -77,11 +86,11 @@ def test_mvp_demo_links_migrate_after_front_matter_insertion(
     assert completed.exit_code == ExitCode.ANALYSIS_FAILURE, completed.stdout
     payload = cast(dict[str, Any], json.loads(completed.stdout))
     assert payload["summary"]["registry"] == {
-        "active": 4,
+        "active": 10,
         "ignored": 1,
         "unlinked": 1,
     }
-    assert payload["summary"]["migrations"] == {"migrated": 5}
+    assert payload["summary"]["migrations"] == {"exact": 11}
     assert not {
         "LINK_CLAIM_AMBIGUOUS",
         "LINK_CLAIM_MISSING",

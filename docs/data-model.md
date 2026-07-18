@@ -111,7 +111,7 @@ disposition 分区统计和非阻断诊断。
 
 分类阈值和权重集中在领域模块中；表格索引一次构建，mean ± std 保持单个复合候选。
 schema 3 通过当前扫描的零基 `candidate_index` 关联分类与 raw candidate。该索引不是 Claim ID。
-分类步骤本身仍不产生持久身份或链接；阶段 5 的独立身份、Registry、link 和 check 服务消费该结果。表头/方向语义仍未实现。
+分类步骤本身仍不产生持久身份或链接；阶段 5 的独立身份、Registry、link 和 check 服务消费该结果。阶段 6 的表格语义来自显式配置，不修改分类模型。
 详细规则见 [claim-classification.md](claim-classification.md)。
 
 ### 3.2 阶段 5 Claim 身份模型
@@ -398,22 +398,26 @@ Evidence 必须描述已观察事实，不包含规则结论本身。
 
 ### 7.3 `CheckSummary`
 
-保存 checked Claim 数，以及按稳定 key 排序的 registry、migration、diagnostic code 和
-severity 计数。所有计数非负且 key 唯一。
+保存 checked Claim 数、扫描文件数、五条规则的 `RuleExecutionSummary`（executed/skipped、skip reason、info/warning/error、limitation），以及按稳定 key 排序的 registry、migration、diagnostic code 和 severity 计数。所有计数非负且 key 唯一。
 
 ### 7.4 `CheckResult`
 
-当前 schema version `1` 只包含：
+当前 schema version `2` 包含：
 
 - `schema_version`
 - `tool_version`
 - 项目显示名 `project`
 - `CheckSummary`
-- 按 severity、code、位置、Claim ID 和诊断 ID 稳定排序的 `diagnostics`
+- 每条规则的稳定执行摘要
+- 按 severity、code、位置、subject/Claim ID 和诊断 ID 稳定排序的 `diagnostics`
 
-终端和 JSON 只渲染这一模型。未来 HTML 也必须消费同一事实来源，但 HTML、独立
-EvidenceGraph 和 Git evidence 当前均未实现。
+终端、JSON 和单文件离线 HTML 只渲染这一模型。独立 EvidenceGraph 和 Git evidence 当前未实现。
 
+### 7.5 阶段 6 表格与比较模型
+
+`TableCheckSpec` 显式保存 table label、表头/数据行范围、label column、`TableMetricSpec`、best 格式、可选 second-best 格式与 Decimal tie tolerance。`MetricDirection` 只允许 higher/lower。规则输入是已有 `LatexTable`，不含文件系统对象。
+
+`ComparisonSpec` 显式保存 comparison ID、两侧 run、稳定 `controlled_keys`、带理由的 `allowed_differences`、每 key Decimal tolerance、severity 与 note。`ExperimentConfigSnapshot` 只保存请求 key 的不可变 `ConfigValue`；值类型明确区分 null、boolean、number、string、list 与 mapping，不使用无约束字典替代核心对象。
 ## 8. `config.yml` 阶段 3 与 5D 已实现结构
 
 阶段 3 实现结果来源 schema；阶段 5 增加严格 Registry 路径、metric aliases、数值容差和 check policy。JSON/YAML 指标和元数据必须显式声明 selector：

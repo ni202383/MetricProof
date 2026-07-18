@@ -16,11 +16,14 @@ from metricproof import __version__
 from metricproof.adapters.claim_registry import YamlClaimRegistryRepository
 from metricproof.adapters.config import YamlConfigurationRepository, find_project_root
 from metricproof.adapters.doctor import LocalDoctorProbe
+from metricproof.adapters.experiment_configs import LocalExperimentConfigReader
 from metricproof.adapters.experiments import LocalExperimentSourceReader
 from metricproof.adapters.latex import LocalLatexPaperScanner
+from metricproof.adapters.reports import REPORT_FORMATS, check_result_payload, write_report
 from metricproof.application.checking import CORE_RULE_CODES, check_project
 from metricproof.application.claim_registry import load_claim_registry, save_claim_registry
 from metricproof.application.claims import classify_claim_candidates
+from metricproof.application.comparisons import load_config_snapshots
 from metricproof.application.configuration import ProjectConfiguration
 from metricproof.application.doctor import DoctorProbe, DoctorReport, run_doctor
 from metricproof.application.errors import ExitCode, MetricProofError
@@ -37,11 +40,12 @@ from metricproof.application.linking import (
 from metricproof.application.paper import scan_paper
 from metricproof.application.ports import (
     ConfigurationRepository,
+    ExperimentConfigReader,
     ExperimentSourceReader,
     PaperScanner,
 )
 from metricproof.application.registry_ports import ClaimRegistryRepository
-from metricproof.cli.check_output import check_result_payload, render_check_result
+from metricproof.cli.check_output import render_check_result
 from metricproof.cli.claim_output import classification_payloads, render_claim_classifications
 from metricproof.cli.link_output import (
     link_session_payload,
@@ -385,7 +389,7 @@ def check(
         str | None,
         typer.Option(
             "--rule",
-            help="Run one Stage 5 rule: STALE_VALUE, WRONG_DELTA, or MISSING_PROVENANCE.",
+            help="Run one of the five local consistency rules.",
         ),
     ] = None,
     fail_on: Annotated[
@@ -396,7 +400,7 @@ def check(
         ),
     ] = None,
 ) -> None:
-    """Run the three local consistency rules through one unified CheckResult."""
+    """Run five local consistency rules through one unified CheckResult."""
 
     selected_rules = CORE_RULE_CODES
     if rule is not None:
@@ -405,9 +409,12 @@ def check(
             _render_check_error(
                 json_output,
                 code="MPC_RULE",
-                message=f"Unsupported Stage 5 rule code: {rule!r}.",
+                message=f"Unsupported rule code: {rule!r}.",
                 exit_code=ExitCode.USAGE_ERROR,
-                remediation=("Use STALE_VALUE, WRONG_DELTA, or MISSING_PROVENANCE."),
+                remediation=(
+                    "Use STALE_VALUE, WRONG_DELTA, MISSING_PROVENANCE, "
+                    "WRONG_BEST_MARK, or UNFAIR_COMPARISON."
+                ),
             )
         selected_rules = frozenset({normalized_rule})
     if fail_on is not None and fail_on.strip().casefold() not in {"warning", "error"}:
@@ -420,7 +427,7 @@ def check(
         )
 
     try:
-        configuration, result = _load_check_result(selected_rules)
+        _, configuration, result = _load_check_result(selected_rules)
     except KeyboardInterrupt:
         _render_check_error(
             json_output,
@@ -469,6 +476,89 @@ def check(
     if result.has_blocking_input_errors:
         raise typer.Exit(code=ExitCode.INPUT_ERROR)
     if rule_failure:
+        raise typer.Exit(code=ExitCode.ANALYSIS_FAILURE)
+
+
+@app.command()
+def report(
+    report_format: Annotated[
+        str,
+        typer.Option("--format", help="Report format: html or json."),
+    ] = "html",
+    output: Annotated[
+        str,
+        typer.Option("--output", help="Project-relative output file."),
+    ] = "metricproof-report.html",
+    no_timestamp: Annotated[
+        bool,
+        typer.Option("--no-timestamp", help="Omit generation time for byte-stable output."),
+    ] = False,
+) -> None:
+    """Generate one offline report from the same CheckResult as metricproof check."""
+
+    normalized_format = report_format.strip().casefold()
+    if normalized_format not in REPORT_FORMATS:
+        _render_check_error(
+            False,
+            code="MPC_REPORT_FORMAT",
+            message=f"Unsupported report format: {report_format!r}.",
+            exit_code=ExitCode.USAGE_ERROR,
+            remediation="Use --format html or --format json.",
+        )
+    try:
+        project_root, configuration, result = _load_check_result(CORE_RULE_CODES)
+        destination = write_report(
+            project_root,
+            output,
+            normalized_format,
+            result,
+            no_timestamp=no_timestamp,
+        )
+    except KeyboardInterrupt:
+        _render_check_error(
+            False,
+            code="MP_INTERRUPTED",
+            message="Operation interrupted by the user.",
+            exit_code=ExitCode.INTERRUPTED,
+        )
+    except ProjectConfigurationError as error:
+        _render_check_error(
+            False,
+            code="MPC_CONFIG",
+            message=error.message,
+            exit_code=error.exit_code,
+            location=error.file,
+            field=error.field,
+            remediation=error.remediation,
+        )
+    except MetricProofError as error:
+        _render_check_error(
+            False,
+            code="MP_REPORT_INPUT",
+            message=error.message,
+            exit_code=error.exit_code,
+        )
+    except ValueError as error:
+        _render_check_error(
+            False,
+            code="MPC_REPORT_OUTPUT",
+            message=str(error),
+            exit_code=ExitCode.USAGE_ERROR,
+            remediation="Use a project-relative output path inside the project root.",
+        )
+    except OSError as error:
+        _render_check_error(
+            False,
+            code="MP_REPORT_WRITE",
+            message=f"The report could not be written: {error}",
+            exit_code=ExitCode.ENVIRONMENT_ERROR,
+            remediation="Check the output path and local file permissions.",
+        )
+    relative = destination.relative_to(project_root).as_posix()
+    typer.echo(f"MetricProof {normalized_format.upper()} report written to {relative}.")
+    if result.has_blocking_input_errors:
+        raise typer.Exit(code=ExitCode.INPUT_ERROR)
+    if result.has_rule_at_or_above(configuration.rule_policy.fail_on):
         raise typer.Exit(code=ExitCode.ANALYSIS_FAILURE)
 
 
@@ -596,13 +686,19 @@ def _load_link_session() -> tuple[
 
 def _load_check_result(
     selected_rules: frozenset[str],
-) -> tuple[ProjectConfiguration, CheckResult]:
+) -> tuple[Path, ProjectConfiguration, CheckResult]:
     project_root, configuration, scan_result = _load_paper_scan(None)
     catalog = load_experiments(project_root, configuration, _build_experiment_reader())
     registry = load_claim_registry(
         project_root,
         configuration.claim_registry_path,
         _build_claim_registry_repository(),
+    )
+    config_snapshots, config_diagnostics = load_config_snapshots(
+        project_root,
+        configuration,
+        catalog,
+        _build_experiment_config_reader(),
     )
     result = check_project(
         scan_result,
@@ -611,8 +707,11 @@ def _load_check_result(
         registry,
         tool_version=__version__,
         selected_rules=selected_rules,
+        config_snapshots=config_snapshots,
+        config_diagnostics=config_diagnostics,
+        project_display=project_root.name,
     )
-    return configuration, result
+    return project_root, configuration, result
 
 
 def _interactive_link_review(
@@ -729,6 +828,10 @@ def _build_claim_registry_repository() -> ClaimRegistryRepository:
 
 def _build_experiment_reader() -> ExperimentSourceReader:
     return LocalExperimentSourceReader()
+
+
+def _build_experiment_config_reader() -> ExperimentConfigReader:
+    return LocalExperimentConfigReader()
 
 
 def _build_paper_scanner() -> PaperScanner:

@@ -7,6 +7,7 @@ from typing import Protocol
 from metricproof.application.configuration import ExperimentSource, ProjectConfiguration
 from metricproof.domain.models import ExperimentRun, InputDiagnostic
 from metricproof.domain.paper import PaperScanResult
+from metricproof.domain.stage6 import ExperimentConfigSnapshot
 
 
 @dataclass(frozen=True, slots=True)
@@ -21,6 +22,21 @@ class ConfigurationRepository(Protocol):
 
 class ExperimentSourceReader(Protocol):
     def read(self, project_root: Path, source: ExperimentSource) -> SourceReadResult: ...
+
+
+@dataclass(frozen=True, slots=True)
+class ConfigSnapshotReadResult:
+    snapshots: tuple[ExperimentConfigSnapshot, ...]
+    diagnostics: tuple[InputDiagnostic, ...] = ()
+
+
+class ExperimentConfigReader(Protocol):
+    def read(
+        self,
+        project_root: Path,
+        run: ExperimentRun,
+        controlled_keys: tuple[str, ...],
+    ) -> ConfigSnapshotReadResult: ...
 
 
 class PaperScanner(Protocol):

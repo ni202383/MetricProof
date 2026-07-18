@@ -222,7 +222,7 @@ def test_check_reports_three_rules_and_preserves_ignored_and_normal_claims(
     }
     assert payload["summary"]["checked_claim_count"] == 5
     assert payload["tool_version"]
-    assert payload["project"] == "."
+    assert payload["project"] == tmp_path.name
     assert payload["ok"] is False
     assert len(registry.entries) == 4
     assert _snapshot_inputs(tmp_path) == before
@@ -288,9 +288,13 @@ def test_invalid_rule_and_fail_on_are_clean_usage_errors(
     _write_project(tmp_path)
     monkeypatch.chdir(tmp_path)
 
-    bad_rule = runner.invoke(app, ["check", "--json", "--rule", "WRONG_BEST_MARK"])
+    skipped_rule = runner.invoke(app, ["check", "--json", "--rule", "WRONG_BEST_MARK"])
+    bad_rule = runner.invoke(app, ["check", "--json", "--rule", "NOT_A_RULE"])
     bad_threshold = runner.invoke(app, ["check", "--json", "--fail-on", "info"])
 
+    assert skipped_rule.exit_code == ExitCode.SUCCESS
+    skipped_payload = json.loads(skipped_rule.stdout)
+    assert skipped_payload["summary"]["rules"][3]["status"] == "skipped"
     assert bad_rule.exit_code == ExitCode.USAGE_ERROR
     assert json.loads(bad_rule.stdout)["error"]["code"] == "MPC_RULE"
     assert bad_rule.stderr == ""

@@ -16,6 +16,7 @@ from metricproof.domain.diagnostics import (
     CheckDiagnosticKind,
     CheckResult,
     CheckSummary,
+    RuleExecutionSummary,
     check_diagnostic_sort_key,
     make_check_diagnostic,
 )
@@ -25,6 +26,7 @@ from metricproof.domain.models import (
     ExperimentCatalog,
     InputDiagnostic,
     MetricObservation,
+    Severity,
     SourceLocation,
 )
 from metricproof.domain.paper import PaperScanResult
@@ -36,8 +38,21 @@ from metricproof.domain.rules import (
     check_wrong_delta,
     make_link_problem,
 )
+from metricproof.domain.stage6 import (
+    ExperimentConfigSnapshot,
+    check_unfair_comparison,
+    check_wrong_best_mark,
+)
 
-CORE_RULE_CODES = frozenset({"STALE_VALUE", "WRONG_DELTA", "MISSING_PROVENANCE"})
+CORE_RULE_CODES = frozenset(
+    {
+        "STALE_VALUE",
+        "WRONG_DELTA",
+        "MISSING_PROVENANCE",
+        "WRONG_BEST_MARK",
+        "UNFAIR_COMPARISON",
+    }
+)
 
 
 def check_project(
@@ -48,6 +63,9 @@ def check_project(
     *,
     tool_version: str,
     selected_rules: frozenset[str] = CORE_RULE_CODES,
+    config_snapshots: tuple[ExperimentConfigSnapshot, ...] = (),
+    config_diagnostics: tuple[InputDiagnostic, ...] = (),
+    project_display: str = ".",
 ) -> CheckResult:
     """Build one session, run selected pure rules, and return the sole renderer input."""
 
@@ -58,6 +76,7 @@ def check_project(
     diagnostics: list[CheckDiagnostic] = [
         *(_input_diagnostic(item) for item in scan.diagnostics),
         *(_input_diagnostic(item) for item in catalog.diagnostics),
+        *(_input_diagnostic(item) for item in config_diagnostics),
     ]
     if session.identity_collisions:
         location = _fallback_location(scan, configuration)
@@ -78,10 +97,19 @@ def check_project(
             for summary in session.identity_collisions
         )
 
-    has_blocking_inputs = scan.has_blocking_errors or catalog.has_blocking_errors
-    if not has_blocking_inputs and not session.identity_collisions:
+    has_blocking_inputs = (
+        scan.has_blocking_errors
+        or catalog.has_blocking_errors
+        or any(item.blocking for item in config_diagnostics)
+    )
+    can_run_rules = not has_blocking_inputs and not session.identity_collisions
+    if can_run_rules:
         for item in session.items:
             diagnostics.extend(_check_item(item, catalog, configuration, selected_rules))
+        if "WRONG_BEST_MARK" in selected_rules and configuration.table_checks:
+            diagnostics.extend(check_wrong_best_mark(scan.tables, configuration.table_checks))
+        if "UNFAIR_COMPARISON" in selected_rules and configuration.comparisons:
+            diagnostics.extend(check_unfair_comparison(configuration.comparisons, config_snapshots))
 
     ordered = tuple(sorted(_deduplicate(diagnostics), key=check_diagnostic_sort_key))
     registry_counts = Counter(item.status.value for item in session.items)
@@ -90,18 +118,71 @@ def check_project(
     )
     diagnostic_counts = Counter(item.code for item in ordered)
     severity_counts = Counter(item.severity.value for item in ordered)
+    rule_summaries = tuple(
+        _rule_summary(
+            code,
+            selected=code in selected_rules,
+            can_run=can_run_rules,
+            configured=(
+                bool(configuration.table_checks)
+                if code == "WRONG_BEST_MARK"
+                else bool(configuration.comparisons)
+                if code == "UNFAIR_COMPARISON"
+                else True
+            ),
+            diagnostics=ordered,
+        )
+        for code in sorted(CORE_RULE_CODES)
+    )
     return CheckResult(
         schema_version=CHECK_RESULT_SCHEMA_VERSION,
         tool_version=tool_version,
-        project=".",
+        project=project_display,
         summary=CheckSummary(
             checked_claim_count=sum(item.claim is not None for item in session.items),
             registry_counts=tuple(sorted(registry_counts.items())),
             migration_counts=tuple(sorted(migration_counts.items())),
             diagnostic_counts=tuple(sorted(diagnostic_counts.items())),
             severity_counts=tuple(sorted(severity_counts.items())),
+            scanned_file_count=scan.statistics.scanned_file_count,
+            rule_summaries=rule_summaries,
         ),
         diagnostics=ordered,
+    )
+
+
+def _rule_summary(
+    code: str,
+    *,
+    selected: bool,
+    can_run: bool,
+    configured: bool,
+    diagnostics: tuple[CheckDiagnostic, ...],
+) -> RuleExecutionSummary:
+    if not selected:
+        status, reason = "skipped", "not selected"
+    elif not can_run:
+        status, reason = "skipped", "blocking input or identity collision"
+    elif not configured:
+        status, reason = "skipped", "no explicit configuration"
+    else:
+        status, reason = "executed", ""
+    severity_counts = Counter(
+        item.severity
+        for item in diagnostics
+        if item.code == code and item.kind is CheckDiagnosticKind.RULE
+    )
+    limitation_count = sum(
+        item.code == code and item.kind is CheckDiagnosticKind.LIMITATION for item in diagnostics
+    )
+    return RuleExecutionSummary(
+        code=code,
+        status=status,
+        info_count=severity_counts[Severity.INFO],
+        warning_count=severity_counts[Severity.WARNING],
+        error_count=severity_counts[Severity.ERROR],
+        limitation_count=limitation_count,
+        reason=reason,
     )
 
 
