@@ -1,0 +1,25 @@
+schema_version: "1"
+claim_registry_path: .metricproof/claims.yml
+paper_paths:
+  - paper/main.tex
+result_paths:
+  - path: runs/results.yml
+    format: yaml
+    structured:
+      records_selector: runs
+      run_id_selector: id
+      metrics:
+        accuracy: metrics.accuracy
+        f1: metrics.f1
+        recall: metrics.recall
+metric_aliases:
+  accuracy: [accuracy, accuracy gain]
+  f1: [f1, f1 score]
+  recall: [recall]
+numeric_tolerances:
+  default:
+    absolute: "0"
+    relative: "0"
+policy:
+  missing_provenance_severity: warning
+  fail_on: error

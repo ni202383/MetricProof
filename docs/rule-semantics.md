@@ -1,10 +1,12 @@
-# MetricProof 首版规则语义
+# MetricProof 规则语义
+
+当前本地 MVP 仅实现 STALE_VALUE、WRONG_DELTA 和 MISSING_PROVENANCE。WRONG_BEST_MARK 与 UNFAIR_COMPARISON 仅作为后续设计保留，不得由当前 check 选择或输出。
 
 ## 1. 通用规则协议
 
-规则接收已经构建好的 `CheckContext` 子集，只读取领域对象。规则不得读取文件、解析 YAML、调用 Git、访问 CLI 或渲染输出。
+规则接收已经准备好的 Claim、Link、Observation 与策略领域对象，只读取领域对象。规则不得读取文件、解析 YAML、调用 Git、访问 CLI 或渲染输出。
 
-每条规则返回零个或多个 `Diagnostic`。规则执行和诊断排序必须确定。
+每条规则返回零个或多个 `CheckDiagnostic`。规则执行和诊断排序必须确定。
 
 规则诊断必须包含：
 
@@ -212,7 +214,7 @@ sample 模式至少两个操作数。
 - 没有 IgnoreRecord
 - 未命中项目级忽略规则
 
-默认不对 `uncertain` Claim 触发规则；它们只显示在 scan/link 候选中，除非未来由明确配置提升为分析对象。
+默认不对 `POSSIBLE_EXPERIMENT_CLAIM` 触发；只有 `policy.include_possible_missing_provenance: true` 时才纳入。`AMBIGUOUS` 与 `NON_EXPERIMENT` 不触发。
 
 ### 5.4 判断与输出
 
@@ -236,7 +238,7 @@ remediation 应建议运行 `metricproof link` 或显式标记非实验数字。
 - Claim 分类是启发式的；规则不保证找出所有实验结论。
 - 为降低误报，首版宁可把不确定数字留给 link 工作流，也不默认全部报错。
 
-## 6. `WRONG_BEST_MARK`
+## 6. 后续设计：`WRONG_BEST_MARK`（未实现）
 
 ### 6.1 意图
 
@@ -291,7 +293,7 @@ remediation 应建议运行 `metricproof link` 或显式标记非实验数字。
 - 首版不可靠支持复杂跨行跨列表头、宏生成单元格或隐藏数值变换。
 - 规则检查的是源码显示值和格式，不证明表格数字有实验来源；来源由其他规则处理。
 
-## 7. `UNFAIR_COMPARISON`
+## 7. 后续设计：`UNFAIR_COMPARISON`（未实现）
 
 ### 7.1 意图
 
@@ -345,13 +347,13 @@ remediation 应建议运行 `metricproof link` 或显式标记非实验数字。
 - 相同配置不证明实验公平。
 - 受控字段选择质量由用户负责，MetricProof 只执行声明的契约。
 
-## 8. 规则组合与去重
+## 8. 当前规则组合与去重
 
-- broken Link 先产生输入诊断，相关 `STALE_VALUE` / `WRONG_DELTA` 跳过。
+- broken Link 先产生链接诊断，相关 `STALE_VALUE` / `WRONG_DELTA` 跳过。
 - `MISSING_PROVENANCE` 不对 registry 中已有 broken Link 的 Claim 重复报告；broken 状态已有更具体诊断。
-- `WRONG_BEST_MARK` 与 `STALE_VALUE` 可以同时作用于同一表格单元格，因为一个检查格式，一个检查来源值。
-- 多个字段差异优先聚合为一个 `UNFAIR_COMPARISON`，避免每个字段淹没报告。
-- 同一规则、同一主对象和同一证据集合只产生一个稳定 Diagnostic ID。
+- ignored Claim 不产生 `MISSING_PROVENANCE`。
+- 同一 code、Claim、位置、observed/expected 与 evidence ID 集合只产生一个稳定 Diagnostic ID。
+- 后续两条规则尚未参与组合或去重。
 
 ## 9. 默认严重程度建议
 
@@ -360,8 +362,8 @@ remediation 应建议运行 `metricproof link` 或显式标记非实验数字。
 | `STALE_VALUE` | error |
 | `WRONG_DELTA` | error |
 | `MISSING_PROVENANCE` | warning |
-| `WRONG_BEST_MARK` | warning |
-| `UNFAIR_COMPARISON` | warning |
+
+`WRONG_BEST_MARK` 与 `UNFAIR_COMPARISON` 当前没有运行时严重程度，因为尚未实现。
 
 严重程度可以在受控配置范围内覆盖，但规则代码与事实语义不能被配置改变。
 

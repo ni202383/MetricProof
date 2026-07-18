@@ -1,0 +1,311 @@
+schema_version: '1'
+claims:
+- identity:
+    claim_id: clm_5444d229de58e3a2737d
+    fingerprint:
+      version: '1'
+      digest: 5444d229de58e3a2737d6ee0b0558f35a28e3209ab108dd47ccac987a7dc704f
+      path: paper/main.tex
+      structural_anchor: context=text|environment=document|command=none
+      context_digest: 0c5919b774343d462cbd
+      semantic_digest: f884c7092b5021aa8a5d
+      components:
+      - - fingerprint_version
+        - '1'
+      - - kind
+        - derived_result
+      - - occurrence_ordinal
+        - '0'
+      - - path
+        - paper/main.tex
+      - - prefix_anchor
+        - racy is <num>\%. proposed accuracy reaches <num>\%. the reported accuracy gain is
+      - - structural_anchor
+        - context=text|environment=document|command=none
+      - - suffix_anchor
+        - percentage points. the f1 score reaches <num>. recall reaches <num>\% without a
+      - - syntactic_context
+        - text
+    location:
+      path: paper/main.tex
+      selector: ''
+      line: 5
+      column: 31
+      end_line: 5
+      end_column: 35
+      char_start: 153
+      char_end: 157
+    raw_text: '25.0'
+    kind: derived_result
+    disposition: likely_experiment_claim
+    context:
+      summary: racy is <num>\%. proposed accuracy reaches <num>\%. the reported accuracy gain is <claim>
+        percentage points. the f1 score reaches <num>. recall reaches <num>\% without a
+      structural_anchor: context=text|environment=document|command=none
+      prefix_anchor: racy is <num>\%. proposed accuracy reaches <num>\%. the reported accuracy gain is
+      suffix_anchor: percentage points. the f1 score reaches <num>. recall reaches <num>\% without a
+      syntactic_context: text
+      occurrence_ordinal: 0
+      table_anchor: null
+      table_row: null
+      table_column: null
+  status: active
+  link:
+    type: derived
+    operation: subtraction
+    operands:
+    - name: baseline
+      metric:
+        source_file: runs/results.yml
+        run_id: baseline
+        metric_name: accuracy
+        source_selector: runs.0.metrics.accuracy
+        scale: identity
+    - name: candidate
+      metric:
+        source_file: runs/results.yml
+        run_id: proposed
+        metric_name: accuracy
+        source_selector: runs.1.metrics.accuracy
+        scale: identity
+    output_unit: percent_points
+    output_scale: identity
+    confirmed_fingerprint: 5444d229de58e3a2737d6ee0b0558f35a28e3209ab108dd47ccac987a7dc704f
+    rounding:
+      decimal_places: 1
+      mode: half_up
+    note: Intentionally incorrect displayed percentage-point delta.
+- identity:
+    claim_id: clm_6fb4dff79a6f35b7b2a5
+    fingerprint:
+      version: '1'
+      digest: 6fb4dff79a6f35b7b2a5deadc9e7d5b4e658c507797deaa040602729e9189f09
+      path: paper/main.tex
+      structural_anchor: context=text|environment=document|command=none
+      context_digest: 8fa1a1565d61225d5afd
+      semantic_digest: e0b4e22824ced3adf8dd
+      components:
+      - - fingerprint_version
+        - '1'
+      - - kind
+        - direct_result
+      - - occurrence_ordinal
+        - '0'
+      - - path
+        - paper/main.tex
+      - - prefix_anchor
+        - ment} on the test split, baseline accuracy is <num>\%. proposed accuracy reaches
+      - - structural_anchor
+        - context=text|environment=document|command=none
+      - - suffix_anchor
+        - . the reported accuracy gain is <num> percentage points. the f1 score reaches <num>
+      - - syntactic_context
+        - text
+    location:
+      path: paper/main.tex
+      selector: ''
+      line: 4
+      column: 27
+      end_line: 4
+      end_column: 33
+      char_start: 115
+      char_end: 121
+    raw_text: 80.0\%
+    kind: direct_result
+    disposition: likely_experiment_claim
+    context:
+      summary: ment} on the test split, baseline accuracy is <num>\%. proposed accuracy reaches <claim>
+        . the reported accuracy gain is <num> percentage points. the f1 score reaches <num>
+      structural_anchor: context=text|environment=document|command=none
+      prefix_anchor: ment} on the test split, baseline accuracy is <num>\%. proposed accuracy reaches
+      suffix_anchor: . the reported accuracy gain is <num> percentage points. the f1 score reaches <num>
+      syntactic_context: text
+      occurrence_ordinal: 0
+      table_anchor: null
+      table_row: null
+      table_column: null
+  status: active
+  link:
+    type: direct
+    metric:
+      source_file: runs/results.yml
+      run_id: proposed
+      metric_name: accuracy
+      source_selector: runs.1.metrics.accuracy
+      scale: identity
+    confirmed_fingerprint: 6fb4dff79a6f35b7b2a5deadc9e7d5b4e658c507797deaa040602729e9189f09
+    note: Intentionally stale for the demo.
+- identity:
+    claim_id: clm_912e38031760dfd36d72
+    fingerprint:
+      version: '1'
+      digest: 912e38031760dfd36d72d0b1eccdf4d1ced84d4c6a0578933171507c3457c71a
+      path: paper/main.tex
+      structural_anchor: context=text|environment=document|command=none
+      context_digest: 8fbba2ef92178b0c98c0
+      semantic_digest: 1ae4492ac42d9141d2f2
+      components:
+      - - fingerprint_version
+        - '1'
+      - - kind
+        - direct_result
+      - - occurrence_ordinal
+        - '0'
+      - - path
+        - paper/main.tex
+      - - prefix_anchor
+        - <num>\%. the reported accuracy gain is <num> percentage points. the f1 score reaches
+      - - structural_anchor
+        - context=text|environment=document|command=none
+      - - suffix_anchor
+        - . recall reaches <num>\% without a recorded source link. the timeout metric is <num>
+      - - syntactic_context
+        - text
+    location:
+      path: paper/main.tex
+      selector: ''
+      line: 6
+      column: 22
+      end_line: 6
+      end_column: 27
+      char_start: 198
+      char_end: 203
+    raw_text: '0.750'
+    kind: direct_result
+    disposition: likely_experiment_claim
+    context:
+      summary: <num>\%. the reported accuracy gain is <num> percentage points. the f1 score reaches <claim>
+        . recall reaches <num>\% without a recorded source link. the timeout metric is <num>
+      structural_anchor: context=text|environment=document|command=none
+      prefix_anchor: <num>\%. the reported accuracy gain is <num> percentage points. the f1 score reaches
+      suffix_anchor: . recall reaches <num>\% without a recorded source link. the timeout metric is <num>
+      syntactic_context: text
+      occurrence_ordinal: 0
+      table_anchor: null
+      table_row: null
+      table_column: null
+  status: active
+  link:
+    type: direct
+    metric:
+      source_file: runs/results.yml
+      run_id: proposed
+      metric_name: f1
+      source_selector: runs.1.metrics.f1
+      scale: identity
+    confirmed_fingerprint: 912e38031760dfd36d72d0b1eccdf4d1ced84d4c6a0578933171507c3457c71a
+    note: Consistent scalar example.
+- identity:
+    claim_id: clm_cc2bac2b0d8d596d9499
+    fingerprint:
+      version: '1'
+      digest: cc2bac2b0d8d596d949981f8addf3831adcb582a8fb98582c29cc73ffbfb1e9c
+      path: paper/main.tex
+      structural_anchor: context=text|environment=document|command=none
+      context_digest: 1ca134d10e778094f63f
+      semantic_digest: cd9bfb32ef8e9cc900f2
+      components:
+      - - fingerprint_version
+        - '1'
+      - - kind
+        - experiment_quantity
+      - - occurrence_ordinal
+        - '0'
+      - - path
+        - paper/main.tex
+      - - prefix_anchor
+        - documentclass{article} \begin{document} on the test split, baseline accuracy is
+      - - structural_anchor
+        - context=text|environment=document|command=none
+      - - suffix_anchor
+        - . proposed accuracy reaches <num>\%. the reported accuracy gain is <num> percentag
+      - - syntactic_context
+        - text
+    location:
+      path: paper/main.tex
+      selector: ''
+      line: 3
+      column: 41
+      end_line: 3
+      end_column: 47
+      char_start: 81
+      char_end: 87
+    raw_text: 70.0\%
+    kind: experiment_quantity
+    disposition: possible_experiment_claim
+    context:
+      summary: documentclass{article} \begin{document} on the test split, baseline accuracy is <claim>
+        . proposed accuracy reaches <num>\%. the reported accuracy gain is <num> percentag
+      structural_anchor: context=text|environment=document|command=none
+      prefix_anchor: documentclass{article} \begin{document} on the test split, baseline accuracy is
+      suffix_anchor: . proposed accuracy reaches <num>\%. the reported accuracy gain is <num> percentag
+      syntactic_context: text
+      occurrence_ordinal: 0
+      table_anchor: null
+      table_row: null
+      table_column: null
+  status: active
+  link:
+    type: direct
+    metric:
+      source_file: runs/results.yml
+      run_id: baseline
+      metric_name: accuracy
+      source_selector: runs.0.metrics.accuracy
+      scale: identity
+    confirmed_fingerprint: cc2bac2b0d8d596d949981f8addf3831adcb582a8fb98582c29cc73ffbfb1e9c
+    note: Consistent fraction-to-percent example.
+- identity:
+    claim_id: clm_ea4aae2bd3f3af260d81
+    fingerprint:
+      version: '1'
+      digest: ea4aae2bd3f3af260d81422943dbade8bf9e8a6c7f1fa1c7eb0fddf1258ecca9
+      path: paper/main.tex
+      structural_anchor: context=text|environment=document|command=none
+      context_digest: 53a0897ab671a9b2b29e
+      semantic_digest: 6db4ab59f7ff438868d8
+      components:
+      - - fingerprint_version
+        - '1'
+      - - kind
+        - experiment_quantity
+      - - occurrence_ordinal
+        - '0'
+      - - path
+        - paper/main.tex
+      - - prefix_anchor
+        - <num>. recall reaches <num>\% without a recorded source link. the timeout metric is
+      - - structural_anchor
+        - context=text|environment=document|command=none
+      - - suffix_anchor
+        - seconds; it is a run setting, not an experimental result. \end{document}
+      - - syntactic_context
+        - text
+    location:
+      path: paper/main.tex
+      selector: ''
+      line: 8
+      column: 23
+      end_line: 8
+      end_column: 27
+      char_start: 281
+      char_end: 285
+    raw_text: '10.0'
+    kind: experiment_quantity
+    disposition: possible_experiment_claim
+    context:
+      summary: <num>. recall reaches <num>\% without a recorded source link. the timeout metric is <claim>
+        seconds; it is a run setting, not an experimental result. \end{document}
+      structural_anchor: context=text|environment=document|command=none
+      prefix_anchor: <num>. recall reaches <num>\% without a recorded source link. the timeout metric
+        is
+      suffix_anchor: seconds; it is a run setting, not an experimental result. \end{document}
+      syntactic_context: text
+      occurrence_ordinal: 0
+      table_anchor: null
+      table_row: null
+      table_column: null
+  status: ignored
+  ignore:
+    reason: non_experimental_number
+    note: Run timeout setting, not a reported experiment result.

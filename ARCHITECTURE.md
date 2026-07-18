@@ -6,7 +6,7 @@
 
 - 规则可确定性测试，不依赖 CLI、Rich、Jinja2 或真实文件系统。
 - LaTeX、实验文件、Git 和持久化操作均可替换为测试适配器。
-- 同一领域结果可供终端、JSON 和 HTML 报告复用。
+- 同一 `CheckResult` 已供终端和 JSON 复用；未来 HTML 必须复用同一模型。
 - 首版模块数量足以表达职责，但不建立插件系统、数据库或服务端。
 - 不可靠或不完整的输入通过显式诊断传播，不静默吞掉。
 - Python 3.13 是当前运行、测试、静态检查和构建基线。
@@ -89,7 +89,7 @@ metricproof/
 - 实验 Run、MetricObservation 和配置快照。
 - DirectLink、DerivedLink、IgnoreRecord 和 ComparisonSpec。
 - Evidence、Diagnostic、Severity 和规则代码。
-- 五条规则的纯计算。
+- 当前三条 MVP 规则的纯计算；后续两条规则不在本阶段。
 
 领域对象的字段设计见 [docs/data-model.md](docs/data-model.md)。
 
@@ -109,9 +109,23 @@ metricproof/
 - 基础 LaTeX 表格、行、单元格、结构标记与格式事实
 - 输入与 limitation 诊断
 
-它不执行 Claim 分类、Claim ID、表头/指标推断或最佳值判断。后续阶段只能基于该结果继续建模。
+它不执行 Claim 分类、Claim ID、表头/指标推断或最佳值判断。阶段 4B2a 的独立分类服务只消费该结果。
 
-### 5.3 `LoadExperiments`
+### 5.3 `ClassifyClaimCandidates`
+
+接收 `PaperScanResult` 和已验证的指标别名，构建一次候选到表格上下文索引，返回稳定排序的
+`ClaimClassificationResult`。它不读取磁盘、实验结果或具体适配器，不修改 `PaperScanResult`，
+也不建立持久 Claim 身份或链接。
+
+### 5.3a PrepareClaimIdentities
+
+阶段 5 的身份服务复用同一个 PaperScanResult 与分类结果，为 likely/possible
+（以及用户显式要求的 ambiguous）建立版本 1 指纹和稳定 ID。它只消费领域对象，
+不重新读取 LaTeX。可选迁移接收持久身份快照，按稳定 ID、上下文、结构和位置分层匹配，
+输出 EXACT、MIGRATED、AMBIGUOUS、MISSING 或 COLLISION；成功迁移保留旧的
+持久 Claim ID，任何非唯一结果都不自动绑定。
+
+### 5.4 `LoadExperiments`
 
 协调结果文件和实验配置读取，输出稳定排序的：
 
@@ -119,21 +133,25 @@ metricproof/
 - `MetricObservation`
 - 输入诊断
 
-### 5.4 `SuggestLinks`
+### 5.5 `SuggestLinks`
 
-接收 Claim、Observation、指标别名和上下文，输出带特征贡献的 `CandidateMatch`。它不自行确认链接。
+阶段 5C 的纯领域匹配器接收 `IdentifiedClaim`、已加载 `ExperimentCatalog` 和严格 metric aliases，输出带逐项贡献、建议 scale/type 和不确定性的 `CandidateMatch`。应用层 `suggest_links` 只适配 `ProjectConfiguration`；同分/近似同分标记 ambiguous，任何候选都不自行确认或写 Registry。
 
-### 5.5 `UpdateClaimRegistry`
+### 5.6 `UpdateClaimRegistry`
 
-验证用户选择，将 DirectLink、DerivedLink 或 IgnoreRecord 原子持久化。迁移或碰撞不唯一时拒绝写入。
+阶段 5B 由 `load_claim_registry`、`save_claim_registry` 和 `save_claim_registry_entry` 通过 `ClaimRegistryRepository` 读取或持久化已验证领域对象。应用层不实例化 YAML 或文件适配器。迁移或碰撞不唯一时，上游不得构造 active 写入；Registry 保留 ambiguous/missing/broken 状态和迁移证据。
 
-### 5.6 `CheckProject`
+### 5.7 `CheckProject`
 
-构建只读 `CheckContext`，按稳定顺序运行适用规则，返回统一 `CheckResult`。规则本身不通过服务访问文件。
+阶段 5D 已实现。它消费一次 `PaperScanResult`、一次 `ExperimentCatalog`、已验证配置和
+`ClaimRegistry`，构建一个 `LinkSession`，处理迁移/失效链接，再按选择运行三条纯规则。
+输出是稳定排序、schema version `1` 的唯一 `CheckResult`。规则不访问文件，应用服务
+不实例化适配器。
 
-### 5.7 `BuildReport`
+### 5.8 输出渲染
 
-把 `CheckResult` 交给报告端口。终端、JSON 和 HTML 不得拥有独立规则语义。
+当前终端与 JSON renderer 都只消费 `CheckResult`，不重新执行或复制规则。HTML
+`BuildReport` 仍是后续设计，当前未实现。
 
 ## 6. 应用端口
 
@@ -148,7 +166,7 @@ metricproof/
 | `ExperimentSourceReader` | 把 JSON/YAML/CSV 归一化为 Run 和 Observation |
 | `ExperimentConfigReader` | 读取受控配置字段及来源位置 |
 | `GitEvidenceProvider` | 只读获取仓库、commit、branch 和工作树证据 |
-| `ReportRenderer` | 将统一结果模型渲染为目标格式 |
+| `ReportRenderer` | 后续 HTML 等报告端口；当前终端/JSON 为 CLI 纯渲染函数 |
 
 适配器不得通过“万能上下文对象”绕过端口职责。
 
@@ -156,15 +174,19 @@ metricproof/
 
 ### 7.1 配置与链接
 
-- Pydantic 负责 schema 验证。
-- YAML 使用安全加载。
-- 未知顶级字段拒绝。
-- 写入临时文件、刷新后在同一文件系统内原子替换。
+阶段 5B 的 `YamlClaimRegistryRepository` 已实现：
+
+- Pydantic strict/extra-forbid 模型负责顶级和全部嵌套字段 schema 验证。
+- YAML 只安全加载一个文档，危险标签、重复键、多文档和错误类型受控失败。
+- Registry 路径和所有 Link 来源均为项目相对 POSIX 路径；拒绝绝对路径、反斜杠、`..` 与符号链接逃逸。
+- 缺失 registry 读取为空集合，不隐式创建目录；保存要求项目内父目录已存在。
+- Claim ID 稳定排序且唯一，每项必须恰好保存 link 或 ignore；领域不变量在反序列化后再次验证。
+- 写入同目录临时文件，flush/fsync 后以 `os.replace` 原子替换；失败时保留旧文件并清理临时文件。
 - schema 版本不兼容时失败，不猜测迁移。
 
 ### 7.2 LaTeX
 
-采用“文件图 → 词法/遮罩 → 基础表格结构 → Claim 分类 → 表格语义”流水线，避免用巨大正则模拟 TeX。阶段 4B1 实现前三步：
+采用“文件图 → 词法/遮罩 → 基础表格结构 → Claim 分类 → 表格语义”流水线，避免用巨大正则模拟 TeX。阶段 4B2a 已实现前四步：
 
 - `LocalLatexPaperScanner` 负责静态 include、循环、缺失文件、路径边界和集中资源限制；每个物理文件只读取一次。
 - Stage 4A 状态机生成原始文本、等长注释/代码遮罩、位置映射、环境上下文与 `RawNumericCandidate`。
@@ -173,7 +195,7 @@ metricproof/
 - adapter 将解析事实转换为不可变领域对象；domain 不保存第三方 parser、文件系统或 Rich 对象。
 - `scan_paper` 只依赖端口与领域对象；`--file` 同时过滤已构建图中的候选和表格。
 - `parsed` 可供后续结构消费；`degraded` 保留恢复结果但不得当作完全可靠；`unsupported` 只确认环境边界，不伪造行列。
-- Claim 分类、Claim ID、表头/指标推断和 best/second-best 判断尚未实现。
+- Claim 分类使用纯领域启发式和一次表格索引；阶段 5 身份服务在其上建立版本化 Claim ID 与可解释迁移。表头/指标正式映射和 best/second-best 判断仍未实现。
 
 ### 7.3 实验结果
 
@@ -189,16 +211,14 @@ metricproof/
 
 ### 7.4 Git
 
-- 使用参数列表调用 Git，不使用 `shell=True`。
-- 只执行读取操作，设置超时。
-- Git 缺失、浅克隆、detached HEAD 和 dirty state 均显式建模。
-- Git 证据缺失不允许被填充为虚假 commit。
+当前只有 `doctor` 的本地只读 Git 检查：使用参数列表、禁止 `shell=True` 并设置超时。
+`check` 不加载 Git 证据；Git evidence chain 属于后续阶段。
 
-### 7.5 报告
+### 7.5 输出
 
-- Console adapter 可使用 Rich。
-- JSON adapter 输出版本化 schema。
-- HTML adapter 使用 Jinja2 自动转义并内嵌必要样式，不依赖 CDN。
+- Console renderer 可使用 Rich，但只展示 `CheckResult`。
+- JSON renderer 输出 schema version `1`，字段与排序由同一 `CheckResult` 决定。
+- HTML adapter 尚未实现。
 
 ## 8. 数据流
 
@@ -210,38 +230,40 @@ config.yml
   → build LaTeX file graph
   → extract raw numeric candidates
   → parse bounded basic table structures
-  → classify Claims (future)
-  → compute Claim fingerprints
+  → classify raw candidates
+  → compute versioned Claim fingerprints and stable identities
   → PaperScan
 ```
 
 ### 8.2 Link
 
 ```text
-PaperScan + ExperimentCatalog + aliases
-  → deterministic candidate features
-  → ranked CandidateMatch list
-  → user decision
-  → validated atomic claims.yml update
+one PaperScan + ExperimentCatalog + ClaimRegistry + aliases
+  → classify and identify current Claims
+  → deterministic one-to-one migration
+  → active/ignored/broken/ambiguous/missing/unlinked LinkSession
+  → explainable, stable CandidateMatch ranking
+  → explicit user decision or read-only non-interactive output
+  → one validated atomic claims.yml update
 ```
 
 ### 8.3 Check
 
 ```text
-Config + PaperScan + ExperimentCatalog + ClaimRegistry + GitEvidence
-  → CheckContext
-  → ordered rule execution
-  → Diagnostics + EvidenceGraph + Summary
-  → CheckResult
+Config + one PaperScan + one ExperimentCatalog + ClaimRegistry
+  → LinkSession + deterministic identity migration
+  → selected STALE_VALUE / WRONG_DELTA / MISSING_PROVENANCE rules
+  → CheckSummary + stable CheckDiagnostics
+  → CheckResult schema 1
 ```
 
-### 8.4 Report
+### 8.4 Output
 
 ```text
 CheckResult
-  ├── ConsoleRenderer
-  ├── JsonRenderer
-  └── HtmlRenderer
+  ├── ConsoleRenderer (implemented)
+  ├── JsonRenderer (implemented)
+  └── HtmlRenderer (future; not implemented)
 ```
 
 ## 9. 确定性与稳定排序
@@ -264,7 +286,7 @@ CheckResult
 - include、glob、报告输出和临时文件同样执行路径边界检查。
 - 不执行 TeX、训练代码、任意表达式或 YAML 对象构造。
 - DerivedLink 只允许枚举操作，不允许 `eval` / `exec`。
-- HTML 中所有用户文本转义。
+- 未来 HTML 实现必须转义所有用户文本；当前没有 HTML 输出。
 - 文件大小、include 深度、文件数量、表格数、行/单元格数、单元格长度、表格嵌套和 multicolumn span 具有集中内置上限。
 - Git 子进程禁止 shell，限制命令集合并设置超时。
 
@@ -282,7 +304,7 @@ CheckResult
 - Application：用内存端口测试编排、错误传播和写入决策。
 - Adapter：使用临时目录和固定样例验证格式与安全边界。
 - CLI：验证参数、stdout/stderr、JSON 纯净度和退出码。
-- E2E：在虚构 demo project 上验证五条规则与正常反例。
+- E2E：在虚构 demo project 上验证三条 MVP 规则、正常反例、ignore 与前插迁移。
 
 修复缺陷必须先或同时增加能复现问题的回归测试。
 
@@ -303,6 +325,6 @@ CheckResult
 - 应用服务不依赖具体适配器。
 - 核心领域不依赖 Pydantic、Typer、Rich、Jinja2 或 Git。
 - 所有项目路径以 `pathlib.Path` 进入边界，以项目相对路径进入领域。
-- CLI 最终命令集合固定为 `init`、`scan`、`link`、`check`、`report`，可增加辅助子命令但不得替换核心流程。
+- 当前用户闭环命令是 `scan`、`link`、`check` 与 `experiments`；`doctor` 提供环境检查。`init`、`report` 当前未实现。
 - `PaperScanResult.tables` 是后续 Claim/表格语义阶段唯一允许消费的基础表格事实来源。
-- `CheckResult` 是所有报告格式的唯一事实来源。
+- `CheckResult` 是当前终端/JSON以及未来报告格式的唯一事实来源。

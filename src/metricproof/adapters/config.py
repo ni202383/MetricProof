@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from decimal import Decimal, InvalidOperation
 from glob import has_magic
 from pathlib import Path, PureWindowsPath
 from typing import Literal
@@ -9,6 +10,7 @@ from typing import Literal
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
+from metricproof.adapters.config_claims import normalize_metric_aliases
 from metricproof.adapters.limits import MAX_EXPERIMENT_SOURCES, MAX_FILE_BYTES
 from metricproof.adapters.yaml_support import load_single_yaml
 from metricproof.application.configuration import (
@@ -16,9 +18,12 @@ from metricproof.application.configuration import (
     ExperimentFormat,
     ExperimentSource,
     ProjectConfiguration,
+    RulePolicy,
     StructuredSourceOptions,
 )
 from metricproof.application.input_errors import ProjectConfigurationError
+from metricproof.domain.links import NumericTolerance
+from metricproof.domain.models import Severity
 
 CONFIG_RELATIVE_PATH = Path(".metricproof") / "config.yml"
 SUPPORTED_SCHEMA_VERSION = "1"
@@ -109,6 +114,7 @@ class _RawComparison(_StrictModel):
 
 
 class _RawPolicy(_StrictModel):
+    include_possible_missing_provenance: bool = False
     missing_provenance_severity: Literal["info", "warning", "error"] = "warning"
     fail_on: Literal["info", "warning", "error"] = "error"
 
@@ -121,6 +127,7 @@ class _RawLimits(_StrictModel):
 
 class _RawConfig(_StrictModel):
     schema_version: str
+    claim_registry_path: str = ".metricproof/claims.yml"
     result_paths: list[_RawSource] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
     experiment_config_paths: list[str] = Field(default_factory=list)
     exclude_paths: list[str] = Field(default_factory=list)
@@ -198,6 +205,25 @@ class YamlConfigurationRepository:
                 f"set schema_version to {SUPPORTED_SCHEMA_VERSION!r}",
             )
 
+        claim_registry_path = _validate_relative_pattern(
+            raw.claim_registry_path,
+            display_path,
+            "claim_registry_path",
+        )
+        if has_magic(claim_registry_path):
+            raise _config_error(
+                display_path,
+                "claim_registry_path",
+                "claim registry path must be an exact file, not a glob pattern",
+                "use a path such as .metricproof/claims.yml",
+            )
+        if Path(claim_registry_path).suffix.casefold() not in {".yml", ".yaml"}:
+            raise _config_error(
+                display_path,
+                "claim_registry_path",
+                "claim registry path must use .yml or .yaml",
+                "use a path such as .metricproof/claims.yml",
+            )
         excludes = tuple(
             sorted(_validate_patterns(raw.exclude_paths, display_path, "exclude_paths"))
         )
@@ -236,6 +262,8 @@ class YamlConfigurationRepository:
             resolved_papers.add(paper)
             paper_paths.append(_relative(root, paper))
 
+        metric_aliases = normalize_metric_aliases(raw.metric_aliases, config_file=display_path)
+        rule_policy = _build_rule_policy(raw, display_path)
         sources: list[ExperimentSource] = []
         resolved_sources: set[Path] = set()
         for index, raw_source in enumerate(raw.result_paths):
@@ -281,7 +309,59 @@ class YamlConfigurationRepository:
             experiment_config_paths=tuple(sorted(experiment_configs)),
             exclude_paths=excludes,
             paper_paths=tuple(sorted(paper_paths)),
+            metric_aliases=metric_aliases,
+            claim_registry_path=claim_registry_path,
+            rule_policy=rule_policy,
         )
+
+
+def _build_rule_policy(raw: _RawConfig, config_file: str) -> RulePolicy:
+    default = NumericTolerance()
+    metrics: tuple[tuple[str, NumericTolerance], ...] = ()
+    if raw.numeric_tolerances is not None:
+        default = _numeric_tolerance(
+            raw.numeric_tolerances.default,
+            config_file,
+            "numeric_tolerances.default",
+        )
+        metrics = tuple(
+            (
+                metric,
+                _numeric_tolerance(
+                    tolerance,
+                    config_file,
+                    f"numeric_tolerances.metrics.{metric}",
+                ),
+            )
+            for metric, tolerance in sorted(raw.numeric_tolerances.metrics.items())
+        )
+    policy = raw.policy or _RawPolicy()
+    return RulePolicy(
+        default_tolerance=default,
+        metric_tolerances=metrics,
+        include_possible_missing_provenance=policy.include_possible_missing_provenance,
+        missing_provenance_severity=Severity(policy.missing_provenance_severity),
+        fail_on=Severity(policy.fail_on),
+    )
+
+
+def _numeric_tolerance(
+    raw: _RawTolerance,
+    config_file: str,
+    field: str,
+) -> NumericTolerance:
+    try:
+        return NumericTolerance(
+            absolute=Decimal(raw.absolute),
+            relative=Decimal(raw.relative),
+        )
+    except (InvalidOperation, ValueError) as error:
+        raise _config_error(
+            config_file,
+            field,
+            f"numeric tolerance must contain finite non-negative decimals: {error}",
+            "use quoted decimal strings such as absolute: '0.0001' and relative: '0'",
+        ) from error
 
 
 def find_project_root(start: Path) -> Path | None:

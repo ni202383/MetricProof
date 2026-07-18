@@ -87,7 +87,7 @@ def test_scan_json_is_clean_parseable_and_stable(
     assert first.stdout == second.stdout
     assert first.stderr == ""
     payload = json.loads(first.stdout)
-    assert payload["schema_version"] == "2"
+    assert payload["schema_version"] == "3"
     assert payload["result_type"] == "paper_scan"
     assert payload["summary"]["raw_candidate_count"] == 2
     assert payload["candidates"][0]["value"]["canonical"] == "0.872"
@@ -240,7 +240,7 @@ A & baseline 84.1, ours \textbf{87.2} \\
     assert machine.exit_code == ExitCode.SUCCESS
     assert machine.stderr == ""
     payload = json.loads(machine.stdout)
-    assert payload["schema_version"] == "2"
+    assert payload["schema_version"] == "3"
     assert payload["result_type"] == "paper_scan"
     assert payload["summary"]["table_count"] == 1
     table = payload["tables"][0]

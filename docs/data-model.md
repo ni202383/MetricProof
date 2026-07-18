@@ -66,14 +66,14 @@ max(absolute, relative × max(abs(expected), abs(observed)))
 ### 2.4 枚举
 
 - `Severity`: `info`、`warning`、`error`
-- `RuleCode`: 五条首版规则代码
-- `DiagnosticKind`: `rule`、`input`、`limitation`、`internal`
-- `MetricDirection`: `higher`、`lower`
-- `ClaimKind`: `body_value`、`table_cell`、`derived_value`
-- `ClaimClassification`: `experimental`、`non_experimental`、`uncertain`
-- `LinkStatus`: `active`、`ignored`、`broken`、`ambiguous`
+- 当前 `RuleCode`: `STALE_VALUE`、`WRONG_DELTA`、`MISSING_PROVENANCE`
+- `CheckDiagnosticKind`: `rule`、`input`、`link`、`limitation`、`internal`
+- `ClaimKind`: `direct_result`、`derived_result`、`summary_statistic`、`experiment_quantity`、`unknown`
+- `ClaimDisposition`: `likely_experiment_claim`、`possible_experiment_claim`、`ambiguous`、`non_experiment`
+- Registry status: `active`、`ignored`、`broken`、`ambiguous`、`missing`
+- Link session 另有只读 `unlinked` 状态
 - `DerivedOperation`: `subtraction`、`relative_change`、`mean`、`standard_deviation`
-- `StdDevMode`: `sample`、`population`
+- `StandardDeviationMode`: `sample`、`population`
 
 ## 3. 论文模型
 
@@ -94,38 +94,82 @@ max(absolute, relative × max(abs(expected), abs(observed)))
 
 `PaperScanResult` 包含文件图、稳定排序的原始候选、基础表格、输入/limitation 诊断、
 资源统计与 `complete` 标记。`PaperScanStatistics` 同时保存 table 总数以及
-parsed/degraded/unsupported 的精确分区。阶段 4B1 仍不产生 Claim、Claim ID、
-表头/指标/最佳值语义或链接。
+parsed/degraded/unsupported 的精确分区。
 
-### 3.2 `ClaimFingerprint`（后续阶段）
+### 3.2a 阶段 4B2a Claim 候选分类
+
+`ClaimCandidateClassification` 直接引用一个现有 `RawNumericCandidate`，不复制数值，也不建立
+持久身份。它保存 `ClaimDisposition`、`ClaimKind`、0–100 整数分数、`ClaimConfidence`、
+是否建议进入未来默认复核队列，以及排序后的 `ClaimEvidence`。
+
+`ClaimEvidence` 保存 reason code、positive/negative/neutral 方向、整数分数影响、简短解释、
+来源范围和必要的结构上下文。`ClaimClassificationResult` 保存稳定排序的全部分类、精确
+disposition 分区统计和非阻断诊断。
+
+当前 `ClaimKind` 是分类提示：`direct_result`、`derived_result`、`summary_statistic`、
+`experiment_quantity`、`unknown`；它不同于后续持久 `PaperClaim` 的来源位置类型。
+
+分类阈值和权重集中在领域模块中；表格索引一次构建，mean ± std 保持单个复合候选。
+schema 3 通过当前扫描的零基 `candidate_index` 关联分类与 raw candidate。该索引不是 Claim ID。
+分类步骤本身仍不产生持久身份或链接；阶段 5 的独立身份、Registry、link 和 check 服务消费该结果。表头/方向语义仍未实现。
+详细规则见 [claim-classification.md](claim-classification.md)。
+
+### 3.2 阶段 5 Claim 身份模型
+
+StableClaimId 是 clm_ 加 20 位小写十六进制摘要。它不含论文明文或绝对路径，
+不使用绝对行号、随机 UUID、Python hash() 或扫描 candidate index。
+
+ClaimContext 保存：
+
+- 最长 240 字符的复核摘要；
+- 结构锚点；
+- 最长 120 字符、数字替换为占位符的前后文锚点；
+- LaTeX 语法上下文；
+- 同一身份组成下的 occurrence ordinal；
+- 可选表格 label/caption 锚点与逻辑行列。
+
+ClaimFingerprint 保存：
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
-| `version` | `str` | 指纹算法版本 |
-| `digest` | `str` | 固定长度摘要 |
-| `path` | `ProjectPath` | 项目相对文件 |
-| `structural_anchor` | `str | None` | section、table label、行列头等规范锚点 |
-| `context_digest` | `str` | 有限前后文摘要 |
-| `semantic_digest` | `str` | Claim 类型与规范数值摘要 |
+| version | str | 当前固定为 1 |
+| digest | str | 身份组成的完整 SHA-256 |
+| path | ProjectPath | 项目相对 POSIX 文件 |
+| structural_anchor | str | 正文语法环境或表格结构位置 |
+| context_digest | str | 非数字有限上下文摘要 |
+| semantic_digest | str | Claim kind、规范数值和单位摘要 |
+| components | tuple[(str, str), ...] | 有序、可解释的身份组成 |
 
-`claim_id` 由版本化指纹生成，例如 `clm_<digest>`。行号不进入主摘要。
+稳定 ID 使用 digest 的前 20 位；semantic_digest 不进入主身份摘要，所以数值演化不会
+仅因数字本身变化而丢失身份。组件包含 fingerprint_version、相对路径、Claim kind、
+结构锚点、有限前后文、语法上下文和 occurrence ordinal。
 
-### 3.3 `PaperClaim`（后续阶段）
+IdentifiedClaim 组合 StableClaimId、当前 ClaimFingerprint、当前 SourceLocation、
+原始显示文本、NumericValue、Claim kind、disposition、ClaimContext、原分类结果和
+当前扫描 candidate index。candidate index 只作为当前扫描引用，不参与身份摘要。
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `claim_id` | `ClaimId` | 当前稳定身份 |
-| `fingerprint` | `ClaimFingerprint` | 用于迁移和碰撞判断 |
-| `kind` | `ClaimKind` | 正文、表格或派生值 |
-| `value` | `NumericValue` | 数值语义 |
-| `location` | `SourceLocation` | 当前源码位置 |
-| `context` | `ClaimContext` | 周围文本、section、caption、表头等 |
-| `classification` | `ClaimClassification` | 候选分类 |
-| `classification_confidence` | `Decimal [0,1]` | 确定性启发式分值 |
-| `classification_evidence` | `tuple[Evidence, ...]` | 为什么被分类 |
+ClaimIdentityResult 按当前源码位置稳定排序，并显式保存任何截断摘要碰撞。
+碰撞不得静默覆盖或进入自动链接。
 
-置信度是规则证据强弱分值，不宣称统计校准概率。
+### 3.3 迁移模型
 
+ClaimIdentitySnapshot 是 claims registry 后续持久化所需的旧身份事实：稳定 ID、
+旧指纹、旧位置、上次显示文本、kind、disposition 和 ClaimContext。
+
+ClaimMigrationResult 至少保存：
+
+- previous_claim_id；
+- EXACT / MIGRATED / AMBIGUOUS / MISSING / COLLISION；
+- 匹配方法；
+- 0–100 分数；
+- 正面证据与冲突原因；
+- 旧位置、新位置和当前生成 ID；
+- 成功时已恢复旧持久 ID 的 resolved Claim。
+
+迁移先执行稳定 ID 完全匹配，再按同路径、版本、结构锚点、context digest、
+有限 token 重合、表格锚点和位置距离进行确定性评分。候选必须达到 70 分，
+且领先次名至少 15 分。两个旧 Claim 选择同一个新 Claim 时全部返回 COLLISION；
+近似同分返回 AMBIGUOUS；迁移失败不删除旧快照。
 ### 3.4 阶段 4B1 基础表格模型
 
 基础表格模型只表达可从源码确定的结构事实：
@@ -232,68 +276,78 @@ Claim 分类或 Claim ID。
 
 ### 5.1 `MetricReference`
 
-- `source_file`
+- `source_file`：项目相对 POSIX 结果文件路径。
 - `run_id`
 - `metric_name`
 - `source_selector`
-- `scale: Decimal`
+- `scale: LinkScale`
 
-`scale` 把 Observation 值转换到 Claim 的规范比较单位。它是十进制乘数，不是表达式。
+`scale` 把 Observation 值转换到 Claim 比较值，只允许 `identity`、`fraction_to_percent`、`percent_to_fraction`。对应确定性 Decimal 乘数 1、100、0.01；它不是表达式。
 
 ### 5.2 `DirectLink`
 
 - `claim_id`
-- `claim_fingerprint`
-- `metric_reference`
-- 可选 `tolerance_override`
+- `metric`
+- `confirmed_fingerprint`：确认时的完整 64 位 SHA-256 Claim 指纹。
+- 可选 `tolerance_override: NumericTolerance`
 - `note`
-- `status`
+
+状态由外层 `ClaimRegistryEntry` 保存，不在 Link 中复制。
 
 ### 5.3 `DerivedOperand`
 
-- `name`
-- `metric_reference`
+- `name`：小写 snake_case，单个 Link 内唯一并稳定排序。
+- `metric`
 
 ### 5.4 `DerivedLink`
 
 - `claim_id`
-- `claim_fingerprint`
 - `operation`
 - `operands`
-- `output_unit`
-- `output_scale`
-- 可选 `stddev_mode`
+- `output_unit: scalar | ratio | percent_points`
+- `output_scale: LinkScale`
+- `confirmed_fingerprint`
+- `rounding: RoundingPolicy`
+- 可选 `standard_deviation_mode`
 - 可选 `tolerance_override`
 - `note`
-- `status`
 
 操作数约束：
 
-- `subtraction`：恰好两个具名操作数 `candidate`、`baseline`。
-- `relative_change`：恰好两个操作数，baseline 不得为零。
+- `subtraction`：恰好两个具名操作数，稳定顺序为 `baseline`、`candidate`。
+- `relative_change`：同样要求 `baseline`、`candidate`；baseline 为零的不可计算诊断由规则阶段产生。
 - `mean`：至少一个操作数。
-- `standard_deviation`：至少两个操作数，且必须声明 sample/population。
+- `standard_deviation`：至少两个操作数，且必须声明 `sample` 或 `population`。
 
-### 5.5 `IgnoreRecord`
+首版只允许单层枚举操作。操作数只能是 `MetricReference`，不能嵌套 DerivedLink，也不接受表达式、函数名或代码。RoundingPolicy 只支持可选非负小数位和 `half_up`。
 
-- `claim_id`
-- `claim_fingerprint`
-- `reason`
+### 5.5 `ClaimRegistryEntry`
+
+- `identity: ClaimIdentitySnapshot`
+- `status: active | ignored | broken | ambiguous | missing`
+- 恰好一个 `link` 或 `ignore`
 - 可选 `note`
+- 可选 `migration: RegistryMigrationRecord`
 
-忽略必须显式持久化，不能通过删除历史链接伪装。
+`IgnoreRecord` 保存受控 `reason` 与可选 note。忽略必须显式持久化，不能通过删除历史链接伪装。`broken` 必须保留原 Link；`active` 必须有 Link；`ignored` 必须有 IgnoreRecord。
 
+`ClaimRegistry` 固定使用 schema version `1`，entries 按 Claim ID 排序且 ID 唯一。
 ### 5.6 `CandidateMatch`
 
-- Claim 引用。
-- MetricReference。
-- `score: Decimal [0,1]`。
-- 各匹配特征及贡献。
-- 支持证据。
-- 不确定性原因。
+- `claim_id`
+- `suggestion_type: direct | derived`
+- `score: int [0,100]`
+- `features: tuple[MatchFeature, ...]`
+- 排序、去重的 `uncertainties`
+- `suggested_scale`
+- Direct 专用 `metric`
+- Derived 专用 `operation`、`operands`、`output_unit` 和可选 std mode
 
-候选匹配永远不是持久化 Link，直到用户确认。
+每个 `MatchFeature` 保存稳定 code、-100–100 contribution 和人工可读 summary；CandidateMatch 的 score 必须等于全部 contribution 的 0–100 有界和，不能保存不可解释的黑盒分数。
 
+候选排序依次使用总分降序、Direct 优先、来源/operation 稳定身份和 scale。领先不足 8 分时 `ClaimMatchResult.ambiguous=true`。候选匹配永远不是持久化 Link，直到用户逐项确认；数值相同只能贡献一个 feature。
+
+`LinkSession` 把同一次 scan、ExperimentCatalog、ClaimRegistry 和迁移结果组合为 active、ignored、broken、ambiguous、missing、unlinked review items。它只构建会话，不读写具体文件。
 ## 6. 比较模型
 
 ### 6.1 `ComparisonSpec`
@@ -323,55 +377,50 @@ Claim 分类或 Claim ID。
 
 Evidence 必须描述已观察事实，不包含规则结论本身。
 
-### 7.2 `Diagnostic`
+### 7.2 `CheckDiagnostic`
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
-| `diagnostic_id` | `str` | 基于规则和证据生成的稳定身份 |
-| `kind` | `DiagnosticKind` | rule/input/limitation/internal |
-| `code` | `str` | 规则或输入错误代码 |
+| `diagnostic_id` | `str` | 基于 kind、code、Claim、位置、值和 evidence ID 的稳定摘要 |
+| `kind` | `CheckDiagnosticKind` | rule/input/link/limitation/internal |
+| `code` | `str` | 规则或输入/链接代码 |
 | `severity` | `Severity` | 严重程度 |
 | `message` | `str` | 审慎、可复核的描述 |
-| `location` | `SourceLocation | DataLocation | None` | 主位置 |
-| `observed` | `StructuredValue | None` | 当前观察 |
-| `expected` | `StructuredValue | None` | 规则期望 |
-| `evidence` | `tuple[Evidence, ...]` | 证据 |
-| `confidence` | `Decimal [0,1]` | 证据强度 |
-| `remediation` | `str | None` | 人工处理建议 |
-| `related_sources` | `tuple[Location, ...]` | 相关位置 |
+| `location` | `SourceLocation` | 必需的项目相对主位置 |
+| `claim_id` | `str | None` | 相关稳定 Claim ID |
+| `observed` | `ScalarValue` | 当前观察 |
+| `expected` | `ScalarValue` | 规则期望 |
+| `evidence` | `tuple[Evidence, ...]` | 支持事实 |
+| `confidence` | `Decimal [0,1]` | 确定性证据强度，不是错误概率 |
+| `remediation` | `str` | 必需的人工处理建议 |
+| `related_sources` | `tuple[SourceLocation, ...]` | 去重排序后的相关位置 |
+| `uncertainties` | `tuple[str, ...]` | 去重排序后的限制/不确定性 |
 
-### 7.3 `EvidenceGraph`
+### 7.3 `CheckSummary`
 
-节点：
-
-- Claim
-- Link
-- Observation
-- ResultSource
-- ExperimentConfig
-- GitEvidence
-
-边使用固定类型，例如 `linked_to`、`read_from`、`configured_by`、`declared_at_commit`。缺失节点保留 unavailable 状态。
+保存 checked Claim 数，以及按稳定 key 排序的 registry、migration、diagnostic code 和
+severity 计数。所有计数非负且 key 唯一。
 
 ### 7.4 `CheckResult`
 
+当前 schema version `1` 只包含：
+
 - `schema_version`
 - `tool_version`
-- `project`
-- `summary`
-- 稳定排序的 `diagnostics`
-- `errors`
-- `evidence_graph`
-- 非敏感执行元数据
+- 项目显示名 `project`
+- `CheckSummary`
+- 按 severity、code、位置、Claim ID 和诊断 ID 稳定排序的 `diagnostics`
 
-所有报告格式都消费该模型。
+终端和 JSON 只渲染这一模型。未来 HTML 也必须消费同一事实来源，但 HTML、独立
+EvidenceGraph 和 Git evidence 当前均未实现。
 
-## 8. `config.yml` 阶段 3 已实现结构
+## 8. `config.yml` 阶段 3 与 5D 已实现结构
 
-阶段 3 已实现以下严格 schema。JSON/YAML 指标和元数据必须显式声明 selector：
+阶段 3 实现结果来源 schema；阶段 5 增加严格 Registry 路径、metric aliases、数值容差和 check policy。JSON/YAML 指标和元数据必须显式声明 selector：
 
 ```yaml
 schema_version: "1"
+claim_registry_path: .metricproof/claims.yml
 result_paths:
   - path: runs/baseline.json
     format: json
@@ -409,7 +458,7 @@ exclude_paths:
 
 每个结果来源可声明一个精确 `config_reference`。`experiment_config_paths` 的匹配文件在阶段 3 中只验证、稳定记录并作为后续配置快照输入，不比较配置，也不运行 `UNFAIR_COMPARISON`。
 
-未知顶级和嵌套字段均拒绝。所有路径以项目根目录为基准，拒绝绝对路径、`..`、缺失文件、重复别名和符号链接逃逸。
+未知顶级和嵌套字段均拒绝。所有路径以项目根目录为基准，拒绝绝对路径、`..`、缺失文件、重复别名和符号链接逃逸。 `claim_registry_path` 例外地允许文件尚不存在，以便首次链接时创建 registry；但其父目录必须在保存前存在，且路径仍须通过项目边界检查。
 
 ### 8.1 后续完整 MVP 配置参考
 
@@ -417,6 +466,7 @@ exclude_paths:
 
 ```yaml
 schema_version: "1"
+claim_registry_path: .metricproof/claims.yml
 
 paper_paths:
   - paper/main.tex
@@ -487,19 +537,45 @@ limits:
 
 ## 9. `claims.yml` 首版结构
 
+以下示例展示实际层级；摘要值为文档占位，真实文件必须满足长度和格式校验：
+
 ```yaml
 schema_version: "1"
-
 claims:
-  - claim_id: clm_example
-    fingerprint:
-      version: "1"
-      digest: example
-      path: paper/main.tex
-      structural_anchor: "table:main-results|row:Proposed|column:accuracy"
-      context_digest: example-context
-      semantic_digest: example-semantic
-    source_display_value: "87.2\\%"
+  - identity:
+      claim_id: clm_0123456789abcdef0123
+      fingerprint:
+        version: "1"
+        digest: 0000000000000000000000000000000000000000000000000000000000000000
+        path: paper/main.tex
+        structural_anchor: "table:main-results|row:1|column:2"
+        context_digest: 00000000000000000000
+        semantic_digest: 11111111111111111111
+        components:
+          - [kind, direct_result]
+          - [path, paper/main.tex]
+      location:
+        path: paper/main.tex
+        selector: ""
+        line: 18
+        column: 22
+        end_line: 18
+        end_column: 27
+        char_start: 410
+        char_end: 415
+      raw_text: "87.2\\%"
+      kind: direct_result
+      disposition: likely_experiment_claim
+      context:
+        summary: "Proposed accuracy <number>"
+        structural_anchor: "table:main-results|row:1|column:2"
+        prefix_anchor: "proposed accuracy"
+        suffix_anchor: ""
+        syntactic_context: table
+        occurrence_ordinal: 0
+        table_anchor: "label:tab:main-results"
+        table_row: 1
+        table_column: 2
     status: active
     link:
       type: direct
@@ -508,26 +584,19 @@ claims:
         run_id: proposed
         metric_name: accuracy
         source_selector: metrics.accuracy
-        scale: "1"
-    note: "Confirmed from the final evaluation run."
-
-  - claim_id: clm_year
-    fingerprint:
-      version: "1"
-      digest: year-example
-      path: paper/main.tex
-      structural_anchor: "section:introduction"
-      context_digest: year-context
-      semantic_digest: year-semantic
-    source_display_value: "2026"
-    status: ignored
-    ignore:
-      reason: non_experimental_number
-      note: "Publication year."
+        scale: fraction_to_percent
+      confirmed_fingerprint: 0000000000000000000000000000000000000000000000000000000000000000
+      tolerance_override:
+        absolute: "0.05"
+        relative: "0"
+      note: "Confirmed from the final evaluation run."
 ```
 
-DerivedLink 在 `link.type: derived` 下保存枚举 operation 和结构化 operands，不接受代码字符串。
+每项把完整 `ClaimIdentitySnapshot` 放在 `identity` 下。`status`、`link` / `ignore`、可选 entry note 和 migration 位于同级。DirectLink 与 DerivedLink 都保存 `confirmed_fingerprint`，用于发现确认后 Claim 语义变化。
 
+DerivedLink 在 `link.type: derived` 下保存枚举 `operation`、结构化 `operands`、`output_unit`、`output_scale`、`rounding`，以及标准差专用的 `standard_deviation_mode`。它不接受代码字符串。IgnoreRecord 则保存受控 `reason` 和 note。
+
+读取时未知顶级或嵌套字段、重复 Claim ID、无效状态组合和不兼容 schema 均失败。写出时字段顺序固定、Claim 按 ID 排序、Decimal 以字符串保存；采用同目录临时文件、flush、fsync 和原子替换。
 ## 10. 持久化与迁移
 
 - 所有文件必须先完整验证，再替换当前版本。
